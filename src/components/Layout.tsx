@@ -6,6 +6,7 @@ import {
 import { useStore, type Pagina } from '../store/store';
 import { Avatar, BadgesPrivilegio } from './ui';
 import { ReabrirComSenha } from './ReabrirComSenha';
+import { BotaoInstalarTopo } from './Instalar';
 
 const NAV: { p: Pagina['nome']; rotulo: string; icone: ReactNode }[] = [
   { p: 'painel', rotulo: 'Painel', icone: <LayoutDashboard size={18} /> },
@@ -194,6 +195,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </select>
           <Busca />
           <div className="ml-auto flex items-center gap-1">
+            <BotaoInstalarTopo />
             <StatusSalvar />
             <button className="btn-ghost p-2" onClick={() => setEscuro(!escuro)} title="Alternar tema">
               {escuro ? <Sun size={18} /> : <Moon size={18} />}

@@ -3,6 +3,7 @@ import { FilePlus2, FolderOpen, Loader2, Lock, Users } from 'lucide-react';
 import { useStore } from '../store/store';
 import { escolherArquivoExistente, escolherNovoArquivo, ehTauri, temFsAccess } from '../storage/storage';
 import { SenhaIncorretaError } from '../crypto/crypto';
+import { BannerInstalar } from '../components/Instalar';
 
 export function senhaValida(s: string) {
   return /^\d{4}$/.test(s) || s.length >= 6;
@@ -16,6 +17,7 @@ function Moldura({ children }: { children: React.ReactNode }) {
           <Users size={28} />
           <span className="text-xl font-semibold text-slate-800 dark:text-slate-100">Publicadores</span>
         </div>
+        <BannerInstalar />
         {children}
       </div>
     </div>

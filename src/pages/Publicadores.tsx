@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import Fuse from 'fuse.js';
-import { Download, Loader2, Plus, Search, Users } from 'lucide-react';
+import { ClipboardCopy, Download, Loader2, Plus, Search, Users } from 'lucide-react';
 import { mesesComDados, moverPublicador, useStore } from '../store/store';
 import { anoServicoAtual, situacao, type Situacao } from '../domain/serviceYear';
 import { PRIVILEGIOS, type Privilegio } from '../domain/types';
@@ -35,6 +35,17 @@ export function Publicadores() {
     .filter((p) => priv === 'todos' || p.privilegios.includes(priv))
     .filter((p) => sit === 'todos' || situacoes.get(p.id) === sit);
 
+  /** Um nome por linha, na ordem exibida — pronto para colar numa coluna de planilha. */
+  async function copiarNomes() {
+    const texto = lista.map((p) => p.nome).join('\n');
+    try {
+      await navigator.clipboard.writeText(texto);
+      toast(`${lista.length} nomes copiados. Cole na planilha com Ctrl+V.`);
+    } catch {
+      await salvarArquivoGerado('Publicadores.txt', texto, 'text/plain');
+    }
+  }
+
   async function exportarTodos() {
     setGerando(true);
     try {
@@ -55,7 +66,10 @@ export function Publicadores() {
           <h1 className="text-2xl font-semibold">Publicadores</h1>
           <p className="text-sm text-slate-500">{lista.length} exibidos</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-outline" onClick={copiarNomes} disabled={lista.length === 0} title="Copia os nomes exibidos, um por linha, para colar numa planilha">
+            <ClipboardCopy size={16} /> Copiar nomes
+          </button>
           <button className="btn-outline" onClick={exportarTodos} disabled={gerando || lista.length === 0} title="Um PDF com o S-21 de todos os publicadores exibidos (ano de serviço atual)">
             {gerando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
             Cartões (PDF)

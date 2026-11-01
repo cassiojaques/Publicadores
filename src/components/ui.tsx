@@ -58,10 +58,12 @@ const CORES_PRIV: Record<string, string> = {
   servo_ministerial: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
   pioneiro_regular: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
   pioneiro_especial: 'bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300',
+  auxiliar: 'bg-lime-100 text-lime-700 dark:bg-lime-500/15 dark:text-lime-300',
   missionario: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
 };
 
-export function BadgesPrivilegio({ p }: { p: Publicador }) {
+/** Com `mes`, mostra também "PA" para quem foi designado pioneiro auxiliar naquele mês. */
+export function BadgesPrivilegio({ p, mes }: { p: Publicador; mes?: string }) {
   return (
     <>
       {p.batizado === false && (
@@ -74,6 +76,11 @@ export function BadgesPrivilegio({ p }: { p: Publicador }) {
           {x.curto}
         </span>
       ))}
+      {p.auxiliarPermanente ? (
+        <span className={`badge ${CORES_PRIV.auxiliar}`} title="Pioneiro auxiliar permanente">PAP</span>
+      ) : (
+        mes && p.auxiliarMeses.includes(mes) && <span className={`badge ${CORES_PRIV.auxiliar}`} title="Pioneiro auxiliar neste mês">PA</span>
+      )}
     </>
   );
 }

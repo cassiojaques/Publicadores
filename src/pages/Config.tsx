@@ -9,9 +9,9 @@ import type { Db } from '../domain/types';
 export const CHAVE_BLOQUEIO = 'publicadores.bloqueioMin';
 export function minutosBloqueio(): number {
   try {
-    return Number(localStorage.getItem(CHAVE_BLOQUEIO) ?? 10);
+    return Number(localStorage.getItem(CHAVE_BLOQUEIO) ?? 0);
   } catch {
-    return 10;
+    return 0;
   }
 }
 

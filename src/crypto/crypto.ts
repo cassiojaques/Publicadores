@@ -83,7 +83,13 @@ export function lerArquivo(conteudo: string): ArquivoCifrado {
 /** Decifra o arquivo e devolve o texto e a chave (para regravar com a mesma senha). */
 export async function decifrar(conteudo: string, senha: string): Promise<{ texto: string; chave: Chave }> {
   const arq = lerArquivo(conteudo);
-  const chave = await derivarChave(senha, deBase64(arq.kdf.salt), arq.kdf.iteracoes);
+  return decifrarComChave(conteudo, await derivarChave(senha, deBase64(arq.kdf.salt), arq.kdf.iteracoes));
+}
+
+/** Decifra com uma chave já derivada (ex.: lembrada neste dispositivo). */
+export async function decifrarComChave(conteudo: string, chave: Chave): Promise<{ texto: string; chave: Chave }> {
+  const arq = lerArquivo(conteudo);
+  if (arq.kdf.salt !== paraBase64(chave.salt) || arq.kdf.iteracoes !== chave.iteracoes) throw new SenhaIncorretaError();
   try {
     const plano = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: deBase64(arq.iv) }, chave.key, deBase64(arq.dados));
     return { texto: dec.decode(plano), chave };

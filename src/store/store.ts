@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { cifrar, decifrar, derivarChave, type Chave } from '../crypto/crypto';
-import { dbVazio, type Db, type RelatorioMes } from '../domain/types';
+import { cifrar, decifrar, decifrarComChave, derivarChave, type Chave } from '../crypto/crypto';
+import { chaveLembrada, esquecerChave, lembrarChave } from '../crypto/chaveLembrada';
+import { auxiliarNoMes, dbVazio, type Db, type RelatorioMes } from '../domain/types';
 import { relatorioVazio } from '../domain/serviceYear';
 import { ConflitoError, type Armazenamento } from '../storage/storage';
 
@@ -33,7 +34,8 @@ interface Estado {
 
   definirArmazenamento(arm: Armazenamento | null): void;
   criar(arm: Armazenamento, senha: string, nomeCongregacao: string): Promise<void>;
-  desbloquear(senha: string): Promise<void>;
+  /** `lembrar`: true guarda a chave neste dispositivo, false esquece; omitido mantém como está. */
+  desbloquear(senha: string, lembrar?: boolean): Promise<void>;
   bloquear(): Promise<void>;
   trocarArquivo(): Promise<void>;
   atualizar(fn: (db: Db) => void): void;
@@ -54,8 +56,14 @@ function normalizar(db: Db): Db {
     ...base,
     ...db,
     congregacao: { ...base.congregacao, ...db.congregacao },
-    // Registros gravados antes de existirem os campos `batizado` e `inativo`.
-    publicadores: (db.publicadores ?? []).map((p) => ({ ...p, batizado: p.batizado ?? true, inativo: p.inativo ?? false })),
+    // Registros gravados antes de existirem os campos `batizado`, `inativo` e de pioneiro auxiliar.
+    publicadores: (db.publicadores ?? []).map((p) => ({
+      ...p,
+      batizado: p.batizado ?? true,
+      inativo: p.inativo ?? false,
+      auxiliarPermanente: p.auxiliarPermanente ?? false,
+      auxiliarMeses: p.auxiliarMeses ?? [],
+    })),
   };
 }
 
@@ -70,25 +78,41 @@ export const useStore = create<Estado>((set, get) => ({
   toasts: [],
 
   definirArmazenamento(arm) {
-    set({ arm, fase: arm ? 'bloqueado' : 'escolher' });
+    set({ arm, fase: arm ? 'iniciando' : 'escolher' });
+    if (!arm) return;
+    // Abre direto com a chave lembrada; se não houver (ou o PIN mudou), pede o PIN.
+    (async () => {
+      const chave = await chaveLembrada(arm.descricao);
+      if (!chave) throw new Error();
+      const { texto } = await decifrarComChave(await arm.ler(), chave);
+      if (get().arm === arm) set({ chave, db: normalizar(JSON.parse(texto)), fase: 'aberto', pagina: { nome: 'painel' }, conflito: false });
+    })().catch(() => {
+      if (get().arm === arm) set({ fase: 'bloqueado' });
+    });
   },
 
   async criar(arm, senha, nomeCongregacao) {
     const chave = await derivarChave(senha);
     const db = dbVazio(nomeCongregacao);
     await arm.gravar(await cifrar(chave, JSON.stringify(db)), true);
+    await lembrarChave(arm.descricao, chave);
     set({ arm, chave, db, fase: 'aberto', pagina: { nome: 'painel' }, conflito: false });
   },
 
-  async desbloquear(senha) {
+  async desbloquear(senha, lembrar) {
     const arm = get().arm;
     if (!arm) throw new Error('Nenhum arquivo de dados selecionado.');
     const { texto, chave } = await decifrar(await arm.ler(), senha);
+    if (lembrar === true) await lembrarChave(arm.descricao, chave);
+    if (lembrar === false) await esquecerChave(arm.descricao);
     set({ chave, db: normalizar(JSON.parse(texto)), fase: 'aberto', pagina: { nome: 'painel' }, conflito: false });
   },
 
   async bloquear() {
     if (timerSalvar) await get().salvarAgora().catch(() => {});
+    // Bloquear é pedir o PIN de novo: esquece a chave deste dispositivo.
+    const arm = get().arm;
+    if (arm) await esquecerChave(arm.descricao);
     set({ chave: null, db: dbVazio(), fase: 'bloqueado', pagina: { nome: 'painel' } });
   },
 
@@ -139,8 +163,10 @@ export const useStore = create<Estado>((set, get) => ({
     const { arm } = get();
     if (!arm) return;
     await decifrar(await arm.ler(), atual); // valida a senha atual
-    set({ chave: await derivarChave(nova) });
+    const chave = await derivarChave(nova);
+    set({ chave });
     await get().salvarAgora(true);
+    if (await chaveLembrada(arm.descricao)) await lembrarChave(arm.descricao, chave);
   },
 
   navegar(pagina) {
@@ -176,8 +202,20 @@ export function definirRelatorio<K extends keyof RelatorioMes>(
 ) {
   const p = db.publicadores.find((x) => x.id === publicadorId);
   if (!p) return;
-  p.relatorios[mes] = { ...(p.relatorios[mes] ?? relatorioVazio()), [campo]: valor };
+  p.relatorios[mes] = { ...(p.relatorios[mes] ?? { ...relatorioVazio(), auxiliar: auxiliarNoMes(p, mes) }), [campo]: valor };
   garantirMes(db, mes);
+}
+
+/**
+ * Marca/desmarca pioneiro auxiliar no mês. Sem relatório, só registra a designação
+ * (não cria relatório, para não contar como entregue).
+ */
+export function definirAuxiliar(db: Db, publicadorId: string, mes: string, valor: boolean) {
+  const p = db.publicadores.find((x) => x.id === publicadorId);
+  if (!p) return;
+  if (!p.auxiliarPermanente)
+    p.auxiliarMeses = valor ? [...new Set([...p.auxiliarMeses, mes])].sort() : p.auxiliarMeses.filter((m) => m !== mes);
+  if (p.relatorios[mes] || valor !== auxiliarNoMes(p, mes)) definirRelatorio(db, publicadorId, mes, 'auxiliar', valor);
 }
 
 export function excluirRelatorio(db: Db, publicadorId: string, mes: string) {

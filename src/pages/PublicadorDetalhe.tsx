@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Archive, ArchiveRestore, ArrowLeft, Download, Loader2, Pencil, Trash2, UserCheck, UserX, X } from 'lucide-react';
-import { definirRelatorio, excluirRelatorio, mesesComDados, useStore } from '../store/store';
+import { definirAuxiliar, definirRelatorio, excluirRelatorio, mesesComDados, useStore } from '../store/store';
 import {
   anosServicoComDados, formatarData, MESES_ANO_SERVICO, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico,
 } from '../domain/serviceYear';
-import { PRIVILEGIOS, type RelatorioMes } from '../domain/types';
+import { auxiliarNoMes, PRIVILEGIOS, type RelatorioMes } from '../domain/types';
 import { Avatar, BadgeSituacao, Confirmar } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
 import { gerarS21Bytes } from '../pdf/s21';
@@ -169,6 +169,7 @@ export function PublicadorDetalhe({ id }: { id: string }) {
             {PRIVILEGIOS.map((x) => (
               <Caixa key={x.id} marcado={p.privilegios.includes(x.id)} rotulo={x.label} />
             ))}
+            <Caixa marcado={p.auxiliarPermanente} rotulo="Pioneiro auxiliar permanente" />
           </div>
         </div>
 
@@ -208,7 +209,7 @@ export function PublicadorDetalhe({ id }: { id: string }) {
                     </td>
                     <td>{numInput(mes, 'estudos', r?.estudos)}</td>
                     <td className="text-center">
-                      <input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={!!r?.auxiliar} onChange={(e) => editarMes(mes, 'auxiliar', e.target.checked)} aria-label={`Pioneiro auxiliar em ${MESES_ANO_SERVICO[i]}`} />
+                      <input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={r ? r.auxiliar : auxiliarNoMes(p, mes)} onChange={(e) => atualizar((d) => definirAuxiliar(d, id, mes, e.target.checked))} aria-label={`Pioneiro auxiliar em ${MESES_ANO_SERVICO[i]}`} />
                     </td>
                     <td>{numInput(mes, 'horas', r?.horas)}</td>
                     <td>

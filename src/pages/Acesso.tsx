@@ -30,6 +30,7 @@ export function Desbloquear() {
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [falhas, setFalhas] = useState(0);
+  const [lembrar, setLembrar] = useState(true);
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
@@ -39,7 +40,7 @@ export function Desbloquear() {
     try {
       // Atraso progressivo após várias tentativas erradas.
       if (falhas >= 3) await new Promise((r) => setTimeout(r, Math.min(falhas - 2, 10) * 1000));
-      await desbloquear(senha);
+      await desbloquear(senha, lembrar);
     } catch (err) {
       setFalhas((f) => f + 1);
       setErro(err instanceof SenhaIncorretaError ? 'PIN incorreto.' : (err as Error).message);
@@ -73,6 +74,10 @@ export function Desbloquear() {
           aria-label="PIN"
         />
         {erro && <p className="mt-2 text-center text-sm text-rose-600">{erro}</p>}
+        <label className="mt-3 flex items-center justify-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+          <input type="checkbox" className="accent-indigo-600" checked={lembrar} onChange={(e) => setLembrar(e.target.checked)} />
+          Não pedir o PIN neste dispositivo
+        </label>
         <button className="btn-primary mt-4 w-full" disabled={!senha || carregando}>
           {carregando ? <Loader2 className="animate-spin" size={16} /> : 'Entrar'}
         </button>

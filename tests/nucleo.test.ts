@@ -5,7 +5,7 @@ import { cifrar, decifrar, derivarChave, SenhaIncorretaError } from '../src/cryp
 import { anoServicoDe, interpretarData, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico } from '../src/domain/serviceYear';
 import { dbVazio, novoPublicador } from '../src/domain/types';
 import { aplicar, analisarJson, normalizarMes, prever } from '../src/import/relatorioCampo';
-import { definirRelatorio, excluirMes, excluirRelatorio, mesesComDados, moverPublicador } from '../src/store/store';
+import { definirAuxiliar, definirRelatorio, excluirMes, excluirRelatorio, mesesComDados, moverPublicador } from '../src/store/store';
 import { statusDoMes, textoFaltantes, totaisDoMes } from '../src/domain/relatorios';
 import { gerarS21 } from '../src/pdf/s21';
 import { unzipSync } from 'fflate';
@@ -118,12 +118,44 @@ describe('planilha de publicadores', () => {
     expect(interpretarGrupo('G-2 (Luiz)')).toEqual({ nome: 'Grupo 2', dica: 'Luiz' });
     expect(linhas[0].privilegios).toEqual(['anciao']);
     expect(linhas[1].privilegios).toEqual([]);
-    expect(linhas[2]).toMatchObject({ sexo: 'F', batizado: false, nota: 'Pioneiro auxiliar contínuo' });
+    expect(linhas[2]).toMatchObject({ sexo: 'F', batizado: false, auxiliar: 'permanente' });
     expect(linhas[3].privilegios).toEqual(['pioneiro_regular']);
+  });
+  it('lê as colunas Batizado, Situação e Privilégio', () => {
+    const [a, b, c, d] = lerLinhas([
+      { Nome: 'Rui', Grupo: 'G-1', Sexo: 'M', Batizado: 'Sim', 'Situação': 'Pioneiro Regular', 'Privilégio': 'Servo Ministerial' },
+      { Nome: 'Eva', Grupo: 'G-1', Sexo: 'F', Batizado: 'Não', 'Situação': 'Pioneiro Auxiliar', 'Privilégio': '' },
+      { Nome: 'Lia', Grupo: 'G-1', Sexo: 'F', Batizado: 'Sim', 'Situação': 'Pioneiro Auxiliar Permanente', 'Privilégio': '' },
+      { Nome: 'Teo', Grupo: 'G-1', Sexo: 'M', Batizado: 'Sim', 'Situação': 'Inativo', 'Privilégio': 'Ancião' },
+    ]);
+    expect(a).toMatchObject({ batizado: true, privilegios: ['servo_ministerial', 'pioneiro_regular'], auxiliar: 'nao', inativo: false });
+    expect(b).toMatchObject({ sexo: 'F', batizado: false, auxiliar: 'mes' });
+    expect(c).toMatchObject({ auxiliar: 'permanente' });
+    expect(d).toMatchObject({ inativo: true, privilegios: ['anciao'] });
+    const db = dbVazio();
+    aplicarPlanilha(db, preverPlanilha(db, [a, b, c, d]), false, '2026-11');
+    const [rui, eva, lia, teo] = db.publicadores;
+    expect(eva.auxiliarMeses).toEqual(['2026-11']);
+    expect(lia.auxiliarPermanente).toBe(true);
+    expect(teo.inativo).toBe(true);
+    expect(rui.auxiliarMeses).toEqual([]);
+  });
+  it('designação de auxiliar vale no relatório do mês', () => {
+    const db = dbVazio();
+    const lia = novoPublicador({ nome: 'Lia', auxiliarPermanente: true });
+    const eva = novoPublicador({ nome: 'Eva' });
+    db.publicadores.push(lia, eva);
+    definirAuxiliar(db, eva.id, '2026-11', true);
+    expect(eva.relatorios['2026-11']).toBeUndefined(); // só designa, não conta como entregue
+    expect(eva.auxiliarMeses).toEqual(['2026-11']);
+    definirRelatorio(db, lia.id, '2026-10', 'horas', 30);
+    expect(lia.relatorios['2026-10'].auxiliar).toBe(true);
+    const previa = prever(db, [{ mes: '2026-11', nome: 'Eva', relatorio: { participou: true, estudos: null, auxiliar: false, horas: 30, obs: '' } }]);
+    expect(previa.itens[0].linha.relatorio.auxiliar).toBe(true);
   });
   it('cria grupos e escolhe o superintendente pelo nome', () => {
     const db = dbVazio();
-    expect(aplicarPlanilha(db, preverPlanilha(db, linhas), false).criados).toBe(4);
+    expect(aplicarPlanilha(db, preverPlanilha(db, linhas), false, '2026-11').criados).toBe(4);
     expect(db.grupos.map((g) => g.nome)).toEqual(['Grupo 1', 'Grupo 2']);
     const g2 = db.grupos[1];
     expect(db.publicadores.find((p) => p.id === g2.superintendenteId)?.nome).toBe('Luiz Silva');

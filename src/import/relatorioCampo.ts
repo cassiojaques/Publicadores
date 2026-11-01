@@ -1,5 +1,5 @@
 import type { Db, Publicador, RelatorioMes } from '../domain/types';
-import { novoPublicador } from '../domain/types';
+import { auxiliarNoMes, novoPublicador } from '../domain/types';
 import { chaveMes } from '../domain/serviceYear';
 
 /**
@@ -140,8 +140,11 @@ export interface Previa {
 export function prever(db: Db, linhas: LinhaImportada[]): Previa {
   const porNome = new Map(db.publicadores.map((p) => [normalizarNome(p.nome), p]));
   const porId = new Map(db.publicadores.map((p) => [p.id, p]));
-  const itens = linhas.map((linha) => {
-    const publicador = (linha.id && porId.get(linha.id)) || porNome.get(normalizarNome(linha.nome)) || null;
+  const itens = linhas.map((l) => {
+    const publicador = (l.id && porId.get(l.id)) || porNome.get(normalizarNome(l.nome)) || null;
+    // Quem foi designado pioneiro auxiliar (no mês ou permanente) conta como auxiliar mesmo que o arquivo não diga.
+    const auxiliar = l.relatorio.auxiliar || (!!publicador && auxiliarNoMes(publicador, l.mes));
+    const linha = { ...l, relatorio: { ...l.relatorio, auxiliar } };
     return {
       linha,
       publicador,

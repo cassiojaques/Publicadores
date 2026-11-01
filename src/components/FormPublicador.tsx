@@ -161,6 +161,20 @@ export function FormPublicador({
             })}
           </div>
         </div>
+        <label className="flex items-start gap-2 text-sm sm:col-span-2">
+          <input
+            type="checkbox"
+            className="mt-0.5 accent-indigo-600"
+            checked={p.auxiliarPermanente}
+            onChange={(e) => set('auxiliarPermanente', e.target.checked)}
+          />
+          <span>
+            <span className="font-medium">Pioneiro auxiliar permanente</span>
+            <span className="block text-xs text-slate-500">
+              Conta como pioneiro auxiliar todo mês até você desmarcar. Para um mês só, marque "Pion. aux." no mês do cartão.
+            </span>
+          </span>
+        </label>
         <Campo rotulo="Grupo de campo">
           <select
             className="input"

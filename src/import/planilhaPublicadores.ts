@@ -3,10 +3,13 @@ import { normalizarNome } from './relatorioCampo';
 
 /**
  * Cadastro em lote a partir de uma planilha (.xlsx/.csv) com uma linha por publicador.
- * Colunas reconhecidas (primeira linha = cabeçalho): Nome, Grupo, Sexo, Classe/Esperança,
- * Batismo/Designação (Ancião, S. Ministerial, Ir. Batizado, Não Batizado) e Categoria
- * (Publicador, P. Regular, P. Especial, P. Auxiliar, P. Auxiliar Permanente, Irregular).
+ * Colunas reconhecidas (primeira linha = cabeçalho): Nome, Grupo, Sexo, Batizado (Sim/Não),
+ * Situação (Publicador, Inativo, Pioneiro Regular/Especial, Pioneiro Auxiliar,
+ * Pioneiro Auxiliar Permanente), Privilégio (Ancião, Servo Ministerial) e, opcional, Classe/Esperança.
+ * Também aceita o formato antigo (Batismo/Designação e Categoria).
  */
+export type AuxiliarPlanilha = 'nao' | 'mes' | 'permanente';
+
 export interface LinhaPlanilha {
   nome: string;
   grupo: string;
@@ -14,7 +17,8 @@ export interface LinhaPlanilha {
   esperanca: Esperanca;
   batizado: boolean;
   privilegios: Privilegio[];
-  nota: string;
+  inativo: boolean;
+  auxiliar: AuxiliarPlanilha;
 }
 
 const COLUNAS = {
@@ -22,8 +26,9 @@ const COLUNAS = {
   grupo: ['grupo', 'grupo de campo'],
   sexo: ['sexo', 'sex'],
   classe: ['classe', 'esperanca'],
-  designacao: ['batismo', 'designacao', 'situacao'],
-  categoria: ['categoria', 'tipo'],
+  batizado: ['batizado', 'batizada', 'batismo'],
+  situacao: ['situacao', 'categoria', 'tipo'],
+  privilegio: ['privilegio', 'privilegios', 'designacao'],
 };
 
 const chave = (s: unknown) => normalizarNome(String(s ?? '')).replace(/\./g, '').trim();
@@ -38,28 +43,28 @@ export function lerLinhas(linhas: Record<string, unknown>[]): LinhaPlanilha[] {
   for (const l of linhas) {
     const nome = coluna(l, COLUNAS.nome).replace(/\s+/g, ' ');
     if (!nome) continue;
-    const designacao = chave(coluna(l, COLUNAS.designacao));
-    const categoria = chave(coluna(l, COLUNAS.categoria));
+    const batismo = chave(coluna(l, COLUNAS.batizado));
+    // No formato antigo a coluna "Batismo" também traz Ancião/S. Ministerial.
+    const privilegio = `${chave(coluna(l, COLUNAS.privilegio))} ${batismo}`;
+    const situacao = chave(coluna(l, COLUNAS.situacao));
     const privilegios: Privilegio[] = [];
-    if (designacao.startsWith('anciao')) privilegios.push('anciao');
-    if (designacao.includes('ministerial') || designacao.startsWith('servo')) privilegios.push('servo_ministerial');
-    let nota = '';
-    // "Irregular" é calculado pelos relatórios; não vira designação.
-    if (categoria.startsWith('irregular')) nota = '';
-    else if (/(^| )regular/.test(categoria)) privilegios.push('pioneiro_regular');
-    else if (categoria.includes('especial')) privilegios.push('pioneiro_especial');
-    else if (categoria.includes('missionario')) privilegios.push('missionario');
-    else if (categoria.includes('auxiliar')) {
-      nota = /permanente|continuo/.test(categoria) ? 'Pioneiro auxiliar contínuo' : 'Pioneiro auxiliar';
-    }
+    if (privilegio.includes('anciao')) privilegios.push('anciao');
+    if (privilegio.includes('ministerial') || /(^| )(servo|sm)( |$)/.test(privilegio)) privilegios.push('servo_ministerial');
+    let auxiliar: AuxiliarPlanilha = 'nao';
+    // "Irregular" é calculado pelos relatórios; não vira situação.
+    if (situacao.includes('auxiliar')) auxiliar = /permanente|continuo/.test(situacao) ? 'permanente' : 'mes';
+    else if (situacao.includes('especial')) privilegios.push('pioneiro_especial');
+    else if (situacao.includes('missionario')) privilegios.push('missionario');
+    else if (/(^| )regular/.test(situacao)) privilegios.push('pioneiro_regular');
     out.push({
       nome,
       grupo: coluna(l, COLUNAS.grupo),
       sexo: chave(coluna(l, COLUNAS.sexo)).startsWith('f') ? 'F' : 'M',
       esperanca: chave(coluna(l, COLUNAS.classe)).includes('ungid') ? 'ungido' : 'outras_ovelhas',
-      batizado: !/^nao batizad/.test(designacao),
+      batizado: !/^n(ao)?( |$)/.test(batismo),
       privilegios,
-      nota,
+      inativo: situacao.startsWith('inativ'),
+      auxiliar,
     });
   }
   return out;
@@ -67,7 +72,17 @@ export function lerLinhas(linhas: Record<string, unknown>[]): LinhaPlanilha[] {
 
 export async function lerPlanilha(arquivo: ArrayBuffer): Promise<LinhaPlanilha[]> {
   const XLSX = await import('xlsx');
-  const wb = XLSX.read(arquivo);
+  const b = new Uint8Array(arquivo);
+  // .xlsx/.ods (zip) e .xls são binários; o resto é CSV, que pode vir em UTF-8 ou no Windows-1252 do Excel.
+  const binario = (b[0] === 0x50 && b[1] === 0x4b) || (b[0] === 0xd0 && b[1] === 0xcf);
+  let texto = '';
+  if (!binario)
+    try {
+      texto = new TextDecoder('utf-8', { fatal: true }).decode(b);
+    } catch {
+      texto = new TextDecoder('windows-1252').decode(b);
+    }
+  const wb = binario ? XLSX.read(b) : XLSX.read(texto.replace(/^\uFEFF/, ''), { type: 'string' });
   const aba = wb.Sheets[wb.SheetNames[0]];
   return lerLinhas(XLSX.utils.sheet_to_json<Record<string, unknown>>(aba, { defval: '' }));
 }
@@ -105,10 +120,11 @@ export function preverPlanilha(db: Db, linhas: LinhaPlanilha[]): PreviaPlanilha 
 
 /**
  * Aplica a planilha: cria grupos e publicadores novos e, se pedido, atualiza os existentes.
+ * Quem está como "Pioneiro auxiliar" (sem ser permanente) fica designado em `mesAuxiliar`.
  * Quando o grupo traz um nome entre parênteses, define como superintendente o irmão do grupo
  * com esse primeiro nome (preferindo anciãos), se ainda não houver um.
  */
-export function aplicarPlanilha(db: Db, previa: PreviaPlanilha, atualizarExistentes: boolean) {
+export function aplicarPlanilha(db: Db, previa: PreviaPlanilha, atualizarExistentes: boolean, mesAuxiliar: string) {
   const grupoPorNome = new Map(db.grupos.map((g) => [chave(g.nome), g]));
   const dicas = new Map<string, string>();
   const grupoId = (texto: string): string | null => {
@@ -128,13 +144,20 @@ export function aplicarPlanilha(db: Db, previa: PreviaPlanilha, atualizarExisten
     esperanca: l.esperanca,
     batizado: l.batizado,
     privilegios: l.privilegios,
+    inativo: l.inativo,
+    auxiliarPermanente: l.auxiliar === 'permanente',
     grupoId: grupoId(l.grupo),
   });
+  const marcarMes = (p: Publicador, l: LinhaPlanilha) => {
+    if (l.auxiliar === 'mes' && !p.auxiliarMeses.includes(mesAuxiliar)) p.auxiliarMeses = [...p.auxiliarMeses, mesAuxiliar].sort();
+  };
 
   let criados = 0;
   let atualizados = 0;
   for (const l of previa.novos) {
-    db.publicadores.push(novoPublicador({ nome: l.nome, anotacoes: l.nota, ...dados(l) }));
+    const p = novoPublicador({ nome: l.nome, ...dados(l) });
+    marcarMes(p, l);
+    db.publicadores.push(p);
     criados++;
   }
   if (atualizarExistentes)
@@ -142,7 +165,7 @@ export function aplicarPlanilha(db: Db, previa: PreviaPlanilha, atualizarExisten
       const p = db.publicadores.find((x) => x.id === publicador.id);
       if (!p) continue;
       Object.assign(p, dados(linha));
-      if (linha.nota && !p.anotacoes.includes(linha.nota)) p.anotacoes = [p.anotacoes, linha.nota].filter(Boolean).join('\n');
+      marcarMes(p, linha);
       atualizados++;
     }
 

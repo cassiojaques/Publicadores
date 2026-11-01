@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { CalendarPlus, ClipboardCopy, ClipboardList, FileInput, Search, Trash2, X } from 'lucide-react';
 import {
-  definirRelatorio, excluirMes, excluirRelatorio, garantirMes, mesesComDados, useStore,
+  definirAuxiliar, definirRelatorio, excluirMes, excluirRelatorio, garantirMes, mesesComDados, useStore,
 } from '../store/store';
 import { mesRelatorioAtual, nomeMes } from '../domain/serviceYear';
 import { statusDoMes, textoFaltantes, totaisDoMes, type LinhaMes, type StatusMes } from '../domain/relatorios';
-import type { RelatorioMes } from '../domain/types';
+import { auxiliarNoMes, type RelatorioMes } from '../domain/types';
 import { Avatar, BadgesPrivilegio, Confirmar, Modal, Vazio } from '../components/ui';
 
 const ROTULO_STATUS: Record<StatusMes, { t: string; c: string }> = {
@@ -304,6 +304,10 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
                       setEditadas((s) => (s.has(l.p.id) ? s : new Set(s).add(l.p.id)));
                       atualizar((d) => definirRelatorio(d, l.p.id, mes, campo, valor));
                     }}
+                    onAuxiliar={(valor) => {
+                      setEditadas((s) => (s.has(l.p.id) ? s : new Set(s).add(l.p.id)));
+                      atualizar((d) => definirAuxiliar(d, l.p.id, mes, valor));
+                    }}
                     onExcluir={() => {
                       atualizar((d) => excluirRelatorio(d, l.p.id, mes));
                       toast(`Relatório de ${l.p.nome} excluído.`);
@@ -334,9 +338,11 @@ function Resumo({ titulo, t, horas }: { titulo: string; t: { relatorios: number;
 
 function Linha({
   l,
+  mes,
   grupo,
   onAbrir,
   onEditar,
+  onAuxiliar,
   onExcluir,
 }: {
   l: LinhaMes;
@@ -344,6 +350,7 @@ function Linha({
   grupo: string;
   onAbrir: () => void;
   onEditar: <K extends keyof RelatorioMes>(campo: K, valor: RelatorioMes[K]) => void;
+  onAuxiliar: (valor: boolean) => void;
   onExcluir: () => void;
 }) {
   const { p, r, status } = l;
@@ -363,7 +370,7 @@ function Linha({
         <button className="flex items-center gap-2 whitespace-nowrap text-left hover:underline" onClick={onAbrir} title="Abrir cartão">
           <Avatar nome={p.nome} tamanho={24} />
           <span className="font-medium">{p.nome}</span>
-          <BadgesPrivilegio p={p} />
+          <BadgesPrivilegio p={p} mes={mes} />
         </button>
       </td>
       <td className="td whitespace-nowrap text-slate-500">{grupo}</td>
@@ -376,8 +383,8 @@ function Linha({
       </td>
       <td className="td text-center">{num('estudos')}</td>
       <td className="td text-center">
-        <input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={!!r?.auxiliar}
-          onChange={(e) => onEditar('auxiliar', e.target.checked)} aria-label={`Pioneiro auxiliar: ${p.nome}`} />
+        <input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={r ? r.auxiliar : auxiliarNoMes(p, mes)}
+          onChange={(e) => onAuxiliar(e.target.checked)} aria-label={`Pioneiro auxiliar: ${p.nome}`} />
       </td>
       <td className="td text-center">{num('horas')}</td>
       <td className="td">

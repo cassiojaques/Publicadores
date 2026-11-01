@@ -1,8 +1,21 @@
 import { useRef, useState } from 'react';
 import { FileSpreadsheet, Upload } from 'lucide-react';
 import { useStore } from '../store/store';
-import { aplicarPlanilha, interpretarGrupo, lerPlanilha, preverPlanilha, type PreviaPlanilha } from '../import/planilhaPublicadores';
+import { aplicarPlanilha, interpretarGrupo, lerPlanilha, preverPlanilha, type LinhaPlanilha, type PreviaPlanilha } from '../import/planilhaPublicadores';
+import { chaveMes, nomeMes } from '../domain/serviceYear';
 import { PRIVILEGIOS } from '../domain/types';
+
+function textoSituacao(l: LinhaPlanilha, mesAuxiliar: string): string {
+  const pioneiro = PRIVILEGIOS.find((x) => x.id !== 'anciao' && x.id !== 'servo_ministerial' && l.privilegios.includes(x.id));
+  return [
+    l.inativo && 'Inativo',
+    pioneiro?.label,
+    l.auxiliar === 'permanente' && 'Pioneiro auxiliar permanente',
+    l.auxiliar === 'mes' && `Pioneiro auxiliar (${nomeMes(mesAuxiliar)})`,
+  ]
+    .filter(Boolean)
+    .join(', ') || 'Publicador';
+}
 
 /** Cadastro em lote de publicadores a partir de uma planilha Excel/CSV. */
 export function ImportarPlanilha() {
@@ -12,6 +25,7 @@ export function ImportarPlanilha() {
   const [erro, setErro] = useState('');
   const [atualizarExistentes, setAtualizarExistentes] = useState(false);
   const [arrastando, setArrastando] = useState(false);
+  const [mesAuxiliar, setMesAuxiliar] = useState(() => chaveMes(new Date().getFullYear(), new Date().getMonth() + 1));
   const input = useRef<HTMLInputElement>(null);
 
   async function carregar(f: File) {
@@ -31,7 +45,7 @@ export function ImportarPlanilha() {
     if (!previa) return;
     let r = { criados: 0, atualizados: 0 };
     atualizar((d) => {
-      r = aplicarPlanilha(d, previa, atualizarExistentes);
+      r = aplicarPlanilha(d, previa, atualizarExistentes, mesAuxiliar);
     });
     toast(`${r.criados} publicadores adicionados${r.atualizados ? `, ${r.atualizados} atualizados` : ''}.`);
     setPrevia(null);
@@ -59,7 +73,7 @@ export function ImportarPlanilha() {
       >
         <Upload className="text-indigo-500" />
         <p className="font-medium">Arraste a planilha (.xlsx ou .csv) aqui ou clique para escolher</p>
-        <p className="text-xs text-slate-500">Colunas: Nome, Grupo, Sexo, Classe, Batismo/Designação, Categoria</p>
+        <p className="text-xs text-slate-500">Colunas: Nome, Grupo, Sexo, Batizado, Situação (Publicador, Inativo, Pioneiro Regular/Especial, Pioneiro Auxiliar, Pioneiro Auxiliar Permanente), Privilégio (Ancião, Servo Ministerial)</p>
         {arquivo && previa && <p className="flex items-center gap-1 text-sm text-slate-500"><FileSpreadsheet size={14} /> {arquivo}</p>}
         <input
           ref={input}
@@ -94,7 +108,19 @@ export function ImportarPlanilha() {
           {previa.existentes.length > 0 && (
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" className="accent-indigo-600" checked={atualizarExistentes} onChange={(e) => setAtualizarExistentes(e.target.checked)} />
-              Atualizar grupo, sexo e designações dos {previa.existentes.length} já cadastrados
+              Atualizar grupo, sexo, batismo, situação e privilégios dos {previa.existentes.length} já cadastrados
+            </label>
+          )}
+
+          {linhas.some((l) => l.auxiliar === 'mes') && (
+            <label className="flex flex-wrap items-center gap-2 text-sm">
+              Quem está como "Pioneiro auxiliar" fica designado em
+              <input
+                type="month"
+                className="input w-auto py-1"
+                value={mesAuxiliar}
+                onChange={(e) => e.target.value && setMesAuxiliar(e.target.value)}
+              />
             </label>
           )}
 
@@ -105,8 +131,9 @@ export function ImportarPlanilha() {
                   <th className="th">Nome</th>
                   <th className="th">Grupo</th>
                   <th className="th">Sexo</th>
-                  <th className="th">Designações</th>
-                  <th className="th">Observação</th>
+                  <th className="th">Batismo / privilégios</th>
+                  <th className="th">Situação</th>
+                  <th className="th" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -116,11 +143,13 @@ export function ImportarPlanilha() {
                     <td className="td">{l.grupo ? interpretarGrupo(l.grupo).nome : '—'}</td>
                     <td className="td">{l.sexo === 'M' ? 'Masc.' : 'Fem.'}</td>
                     <td className="td text-xs">
-                      {[!l.batizado && 'Não batizado', ...PRIVILEGIOS.filter((x) => l.privilegios.includes(x.id)).map((x) => x.label)]
-                        .filter(Boolean)
-                        .join(', ')}
+                      {[
+                        l.batizado ? 'Batizado' : 'Não batizado',
+                        ...PRIVILEGIOS.filter((x) => (x.id === 'anciao' || x.id === 'servo_ministerial') && l.privilegios.includes(x.id)).map((x) => x.label),
+                      ].join(', ')}
                     </td>
-                    <td className="td text-xs text-slate-500">{i >= previa.novos.length ? 'Já cadastrado' : l.nota}</td>
+                    <td className="td text-xs">{textoSituacao(l, mesAuxiliar)}</td>
+                    <td className="td text-xs text-slate-500">{i >= previa.novos.length ? 'Já cadastrado' : ''}</td>
                   </tr>
                 ))}
               </tbody>

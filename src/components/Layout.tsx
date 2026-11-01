@@ -201,7 +201,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <button className="btn-ghost p-2" onClick={() => setEscuro(!escuro)} title="Alternar tema">
               {escuro ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <button className="btn-ghost p-2" onClick={bloquear} title="Bloquear">
+            <button className="btn-ghost p-2" onClick={bloquear} title="Bloquear (pede o PIN na próxima vez)">
               <Lock size={18} />
             </button>
           </div>

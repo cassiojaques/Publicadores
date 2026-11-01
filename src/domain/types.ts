@@ -40,6 +40,10 @@ export interface Publicador {
   anotacoes: string;
   /** Marcado como inativo manualmente. Volta a ativo ao relatar participação num relatório importado. */
   inativo: boolean;
+  /** Pioneiro auxiliar todo mês até avisar que parou. */
+  auxiliarPermanente: boolean;
+  /** Meses ("AAAA-MM") em que foi designado pioneiro auxiliar, mesmo antes de relatar. */
+  auxiliarMeses: string[];
   /** Mudou-se, faleceu etc. Não aparece nas listas padrão. */
   arquivado: boolean;
   relatorios: Record<string, RelatorioMes>;
@@ -71,6 +75,11 @@ export function dbVazio(nomeCongregacao = ''): Db {
   return { versao: 1, congregacao: { nome: nomeCongregacao }, grupos: [], publicadores: [], importacoes: [] };
 }
 
+/** Designado pioneiro auxiliar no mês (permanente ou só naquele mês). Não olha o relatório. */
+export function auxiliarNoMes(p: Publicador, mes: string): boolean {
+  return p.auxiliarPermanente || p.auxiliarMeses.includes(mes);
+}
+
 export function novoId(): string {
   return crypto.randomUUID();
 }
@@ -90,6 +99,8 @@ export function novoPublicador(parcial: Partial<Publicador> = {}): Publicador {
     endereco: '',
     anotacoes: '',
     inativo: false,
+    auxiliarPermanente: false,
+    auxiliarMeses: [],
     arquivado: false,
     relatorios: {},
     ...parcial,

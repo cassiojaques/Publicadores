@@ -1,0 +1,18 @@
+node_modules
+dist
+src-tauri/target
+*.pub
+backups/
+*.tsbuildinfo
+src-tauri/gen
+
+# Dados reais (nunca versionar)
+*.xlsx
+*.xls
+*.csv
+!tests/**/*.csv
+dev-dist
+
+# Local
+.claude/
+/S-21_T.pdf

@@ -52,8 +52,8 @@ function normalizar(db: Db): Db {
     ...base,
     ...db,
     congregacao: { ...base.congregacao, ...db.congregacao },
-    // Registros gravados antes de existir o campo `batizado`.
-    publicadores: (db.publicadores ?? []).map((p) => ({ ...p, batizado: p.batizado ?? true })),
+    // Registros gravados antes de existirem os campos `batizado` e `inativo`.
+    publicadores: (db.publicadores ?? []).map((p) => ({ ...p, batizado: p.batizado ?? true, inativo: p.inativo ?? false })),
   };
 }
 
@@ -154,8 +154,11 @@ export const useStore = create<Estado>((set, get) => ({
 
 // Seletores e ações de domínio -------------------------------------------------
 
+/** Meses com relatórios na congregação: importados ou digitados no cartão de alguém. */
 export function mesesComDados(db: Db): Set<string> {
-  return new Set(db.importacoes.map((i) => i.mes));
+  const meses = new Set(db.importacoes.map((i) => i.mes));
+  for (const p of db.publicadores) for (const m of Object.keys(p.relatorios)) meses.add(m);
+  return meses;
 }
 
 /** Move o publicador e remove funções de grupo que ele tinha no grupo anterior. */

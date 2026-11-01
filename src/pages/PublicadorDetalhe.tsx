@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Archive, ArchiveRestore, ArrowLeft, Download, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowLeft, Download, Loader2, Pencil, Trash2, UserCheck, UserX } from 'lucide-react';
 import { mesesComDados, useStore } from '../store/store';
 import {
-  anosServicoComDados, formatarData, MESES_ANO_SERVICO, mesesDoAnoServico, relatorioVazio, situacao, totaisAnoServico,
+  anosServicoComDados, formatarData, MESES_ANO_SERVICO, mesesDoAnoServico, relatorioVazio, rotuloAnoServico, situacao, totaisAnoServico,
 } from '../domain/serviceYear';
 import { PRIVILEGIOS, type RelatorioMes } from '../domain/types';
 import { Avatar, BadgeSituacao, Confirmar } from '../components/ui';
@@ -108,6 +108,20 @@ export function PublicadorDetalhe({ id }: { id: string }) {
             <Pencil size={16} /> Editar
           </button>
           <button
+            className={p.inativo ? 'btn-outline text-emerald-700 dark:text-emerald-300' : 'btn-outline text-rose-600'}
+            title={p.inativo ? 'Remover a marcação manual de inativo' : 'Marcar como inativo'}
+            onClick={() => {
+              atualizar((d) => {
+                const x = d.publicadores.find((y) => y.id === id)!;
+                x.inativo = !x.inativo;
+              });
+              toast(p.inativo ? `${p.nome} reativado.` : `${p.nome} marcado como inativo.`);
+            }}
+          >
+            {p.inativo ? <UserCheck size={16} /> : <UserX size={16} />}
+            {p.inativo ? 'Reativar' : 'Inativo'}
+          </button>
+          <button
             className="btn-ghost"
             title={p.arquivado ? 'Restaurar' : 'Arquivar (mudou-se, etc.)'}
             onClick={() => atualizar((d) => {
@@ -135,7 +149,7 @@ export function PublicadorDetalhe({ id }: { id: string }) {
             <select className="input w-auto" value={ano} onChange={(e) => setAno(Number(e.target.value))} aria-label="Ano de serviço">
               {anos.map((a) => (
                 <option key={a} value={a}>
-                  Ano de serviço {a - 1}/{a}
+                  {rotuloAnoServico(a)}
                 </option>
               ))}
             </select>
@@ -168,7 +182,7 @@ export function PublicadorDetalhe({ id }: { id: string }) {
           <table className="w-full border-t border-slate-200 text-sm dark:border-slate-800">
             <thead className="bg-slate-50 dark:bg-slate-900/60">
               <tr className="divide-x divide-slate-200 dark:divide-slate-800">
-                <th className="th w-32">{ano - 1}/{ano}</th>
+                <th className="th w-32">Ano de serviço {ano}</th>
                 <th className="th w-24 text-center">Participou</th>
                 <th className="th w-24 text-center">Estudos</th>
                 <th className="th w-24 text-center">Pion. aux.</th>

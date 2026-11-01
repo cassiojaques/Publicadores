@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import Fuse from 'fuse.js';
-import { ClipboardCopy, Download, Loader2, Plus, Search, Users } from 'lucide-react';
+import { ClipboardCopy, FileStack, Plus, Search, Users } from 'lucide-react';
 import { mesesComDados, moverPublicador, useStore } from '../store/store';
-import { anoServicoAtual, situacao, type Situacao } from '../domain/serviceYear';
+import { situacao, type Situacao } from '../domain/serviceYear';
 import { PRIVILEGIOS, type Privilegio } from '../domain/types';
 import { Avatar, BadgeSituacao, BadgesPrivilegio, Vazio } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
-import { gerarS21Lote } from '../pdf/s21';
+import { GerarCartoes } from '../components/GerarCartoes';
 import { salvarArquivoGerado } from '../storage/storage';
 
 export function Publicadores() {
@@ -17,7 +17,7 @@ export function Publicadores() {
   const [sit, setSit] = useState<Situacao | 'todos'>('todos');
   const [arquivados, setArquivados] = useState(false);
   const [novo, setNovo] = useState(false);
-  const [gerando, setGerando] = useState(false);
+  const [gerarCartoes, setGerarCartoes] = useState(false);
 
   const meses = useMemo(() => mesesComDados(db), [db]);
   const situacoes = useMemo(
@@ -46,19 +46,6 @@ export function Publicadores() {
     }
   }
 
-  async function exportarTodos() {
-    setGerando(true);
-    try {
-      const ano = anoServicoAtual();
-      const bytes = await gerarS21Lote(lista, ano);
-      await salvarArquivoGerado(`Cartoes S-21 ${ano}.pdf`, bytes, 'application/pdf');
-    } catch (e) {
-      toast(`Erro ao gerar PDF: ${(e as Error).message}`, 'erro');
-    } finally {
-      setGerando(false);
-    }
-  }
-
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -70,9 +57,8 @@ export function Publicadores() {
           <button className="btn-outline" onClick={copiarNomes} disabled={lista.length === 0} title="Copia os nomes exibidos, um por linha, para colar numa planilha">
             <ClipboardCopy size={16} /> Copiar nomes
           </button>
-          <button className="btn-outline" onClick={exportarTodos} disabled={gerando || lista.length === 0} title="Um PDF com o S-21 de todos os publicadores exibidos (ano de serviço atual)">
-            {gerando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-            Cartões (PDF)
+          <button className="btn-outline" onClick={() => setGerarCartoes(true)} disabled={db.publicadores.length === 0} title="Gera o S-21 de todos os publicadores de uma vez">
+            <FileStack size={16} /> Gerar todos os cartões
           </button>
           <button className="btn-primary" onClick={() => setNovo(true)}>
             <Plus size={16} /> Novo publicador
@@ -183,6 +169,7 @@ export function Publicadores() {
         )}
       </div>
 
+      <GerarCartoes aberto={gerarCartoes} onFechar={() => setGerarCartoes(false)} exibidos={lista} />
       <FormPublicador
         aberto={novo}
         grupoInicial={grupo !== 'todos' && grupo !== 'sem' ? grupo : null}

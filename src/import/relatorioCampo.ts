@@ -115,11 +115,19 @@ export function analisarJson(texto: string): LinhaImportada[] {
   });
 }
 
+/** Inativo que participou no mês mais recente do seu histórico volta a ser ativo. */
+function reativaria(p: Publicador, linha: LinhaImportada): boolean {
+  if (!p.inativo || !linha.relatorio.participou) return false;
+  return Object.keys(p.relatorios).every((m) => m <= linha.mes);
+}
+
 export interface ItemPrevia {
   linha: LinhaImportada;
   publicador: Publicador | null;
   /** Já existia relatório deste mês para o publicador. */
   sobrescreve: boolean;
+  /** Publicador marcado como inativo que voltou a participar — será reativado. */
+  reativa: boolean;
 }
 
 export interface Previa {
@@ -134,7 +142,12 @@ export function prever(db: Db, linhas: LinhaImportada[]): Previa {
   const porId = new Map(db.publicadores.map((p) => [p.id, p]));
   const itens = linhas.map((linha) => {
     const publicador = (linha.id && porId.get(linha.id)) || porNome.get(normalizarNome(linha.nome)) || null;
-    return { linha, publicador, sobrescreve: !!publicador?.relatorios[linha.mes] };
+    return {
+      linha,
+      publicador,
+      sobrescreve: !!publicador?.relatorios[linha.mes],
+      reativa: !!publicador && reativaria(publicador, linha),
+    };
   });
   const meses = [...new Set(linhas.map((l) => l.mes))].sort();
   const relataram = new Set(itens.filter((i) => i.publicador).map((i) => `${i.publicador!.id}|${i.linha.mes}`));
@@ -154,6 +167,7 @@ export function aplicar(db: Db, previa: Previa, arquivo: string, criarNaoEncontr
       db.publicadores.push(p);
     }
     if (!p) continue;
+    if (reativaria(p, item.linha)) p.inativo = false;
     p.relatorios[item.linha.mes] = item.linha.relatorio;
     n++;
   }

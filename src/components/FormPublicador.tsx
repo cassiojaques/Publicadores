@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { novoPublicador, PRIVILEGIOS, type Publicador } from '../domain/types';
 import { moverPublicador, useStore } from '../store/store';
 import { Campo, Modal } from './ui';
+import { CampoData } from './CampoData';
 
 /** Cria (publicador ausente) ou edita um publicador. */
 export function FormPublicador({
@@ -74,9 +75,10 @@ export function FormPublicador({
         <Campo rotulo="Nome completo" className="sm:col-span-2">
           <input className="input" autoFocus value={p.nome} onChange={(e) => set('nome', e.target.value)} />
         </Campo>
-        <Campo rotulo="Data de nascimento">
-          <input type="date" className="input" value={p.nascimento} onChange={(e) => set('nascimento', e.target.value)} />
-        </Campo>
+        <div>
+          <span className="label">Data de nascimento</span>
+          <CampoData rotulo="Data de nascimento" valor={p.nascimento} onChange={(v) => set('nascimento', v)} />
+        </div>
         <div>
           <span className="label flex items-center justify-between">
             Data de batismo
@@ -90,14 +92,7 @@ export function FormPublicador({
               Não batizado
             </label>
           </span>
-          <input
-            type="date"
-            className="input"
-            disabled={!p.batizado}
-            value={p.batismo}
-            onChange={(e) => set('batismo', e.target.value)}
-            aria-label="Data de batismo"
-          />
+          <CampoData rotulo="Data de batismo" disabled={!p.batizado} valor={p.batismo} onChange={(v) => set('batismo', v)} />
         </div>
         <Campo rotulo="Sexo">
           <div className="flex gap-2">
@@ -193,6 +188,15 @@ export function FormPublicador({
             onChange={(e) => set('anotacoes', e.target.value)}
           />
         </Campo>
+        <label className="flex items-start gap-2 text-sm sm:col-span-2">
+          <input type="checkbox" className="mt-0.5 accent-rose-600" checked={p.inativo} onChange={(e) => set('inativo', e.target.checked)} />
+          <span>
+            <span className="font-medium">Inativo</span>
+            <span className="block text-xs text-slate-500">
+              Também fica inativo automaticamente após 6 meses sem relatar. Volta a ativo quando um relatório importado mostrar participação.
+            </span>
+          </span>
+        </label>
         <button type="submit" hidden />
       </form>
     </Modal>

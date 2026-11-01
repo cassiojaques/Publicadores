@@ -130,6 +130,13 @@ function ImportarRelatorio() {
             </p>
           )}
 
+          {encontrados.some((i) => i.reativa) && (
+            <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200">
+              Voltarão a ser ativos (estavam marcados como inativos):{' '}
+              <b>{encontrados.filter((i) => i.reativa).map((i) => i.publicador!.nome).join(', ')}</b>
+            </p>
+          )}
+
           {naoEncontrados.length > 0 && (
             <div>
               <p className="mb-2 text-sm font-medium">Nomes não encontrados no cadastro:</p>

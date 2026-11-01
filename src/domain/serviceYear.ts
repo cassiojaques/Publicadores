@@ -25,6 +25,11 @@ export function anoServicoDe(chave: string): number {
   return m >= 9 ? a + 1 : a;
 }
 
+/** "Ano de Serviço 2026 (Setembro 2025 – Agosto 2026)". */
+export function rotuloAnoServico(anoServico: number): string {
+  return `Ano de Serviço ${anoServico} (Setembro ${anoServico - 1} – Agosto ${anoServico})`;
+}
+
 export function anoServicoAtual(hoje = new Date()): number {
   return anoServicoDe(chaveMes(hoje.getFullYear(), hoje.getMonth() + 1));
 }
@@ -78,11 +83,12 @@ export function totaisAnoServico(p: Publicador, anoServico: number) {
 export type Situacao = 'ativo' | 'irregular' | 'inativo' | 'sem_dados';
 
 /**
- * Inativo: não participou em nenhum dos últimos 6 meses.
+ * Inativo: marcado manualmente, ou não participou em nenhum dos últimos 6 meses.
  * Irregular: deixou de participar em ao menos um dos últimos 6 meses.
- * Considera apenas meses que já foram importados para a congregação.
+ * Considera apenas meses que já têm relatórios na congregação.
  */
 export function situacao(p: Publicador, mesesComDados: Set<string>, ate = mesRelatorioAtual()): Situacao {
+  if (p.inativo) return 'inativo';
   const janela = ultimosMeses(6, ate).filter((k) => mesesComDados.has(k));
   if (janela.length === 0) return 'sem_dados';
   const participou = janela.filter((k) => p.relatorios[k]?.participou).length;
@@ -99,4 +105,29 @@ export function formatarData(iso: string): string {
   if (!iso) return '';
   const [a, m, d] = iso.split('-');
   return d && m && a ? `${d}/${m}/${a}` : iso;
+}
+
+const MESES_POR_NOME = Object.fromEntries(
+  NOMES_MES.map((n, i) => [n.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().slice(0, 3), i + 1]),
+);
+
+/**
+ * Converte uma data digitada ou colada em "AAAA-MM-DD".
+ * Aceita 15/03/1990, 15-03-1990, 15.03.1990, 15/3/90, 1990-03-15, 15031990 e "15 de março de 1990".
+ * Retorna null se não for uma data válida.
+ */
+export function interpretarData(texto: string): string | null {
+  const s = texto.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  let d: number, m: number, a: number;
+  let r: RegExpMatchArray | null;
+  if ((r = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/))) [a, m, d] = [+r[1], +r[2], +r[3]];
+  else if ((r = s.match(/^(\d{1,2})[-/.\s](\d{1,2})[-/.\s](\d{2}|\d{4})$/))) [d, m, a] = [+r[1], +r[2], +r[3]];
+  else if ((r = s.match(/^(\d{2})(\d{2})(\d{4})$/))) [d, m, a] = [+r[1], +r[2], +r[3]];
+  else if ((r = s.match(/^(\d{1,2})\s*(?:de\s+)?([a-z]{3})[a-z]*\.?\s*(?:de\s+)?(\d{4})$/)) && MESES_POR_NOME[r[2]])
+    [d, m, a] = [+r[1], MESES_POR_NOME[r[2]], +r[3]];
+  else return null;
+  if (a < 100) a += a > new Date().getFullYear() % 100 ? 1900 : 2000;
+  const data = new Date(a, m - 1, d);
+  if (data.getFullYear() !== a || data.getMonth() !== m - 1 || data.getDate() !== d) return null;
+  return `${a}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }

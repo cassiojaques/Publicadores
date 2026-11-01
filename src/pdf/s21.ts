@@ -109,15 +109,37 @@ export async function gerarS21Bytes(p: Publicador, anoServico: number) {
   return (await gerarS21(await carregarModelo(), p, anoServico)).save();
 }
 
+type Progresso = (feitos: number, total: number) => void;
+
 /** Um único PDF com o cartão de todos os publicadores (formulários achatados). */
-export async function gerarS21Lote(publicadores: Publicador[], anoServico: number) {
+export async function gerarS21Lote(publicadores: Publicador[], anoServico: number, progresso?: Progresso) {
   const modelo = await carregarModelo();
   const saida = await PDFDocument.create();
   saida.setTitle(`Registros de Publicador — ${anoServico}`);
-  for (const p of publicadores) {
+  for (const [i, p] of publicadores.entries()) {
     const doc = await gerarS21(modelo, p, anoServico, { achatar: true });
     const [pagina] = await saida.copyPages(doc, [0]);
     saida.addPage(pagina);
+    progresso?.(i + 1, publicadores.length);
   }
   return saida.save();
+}
+
+export function nomeArquivoS21(p: Publicador, anoServico: number) {
+  return `S-21 ${anoServico} - ${p.nome.replace(/[\\/:*?"<>|]/g, '').trim()}.pdf`;
+}
+
+/** Um .zip com um PDF (editável) por publicador. */
+export async function gerarS21Zip(publicadores: Publicador[], anoServico: number, progresso?: Progresso) {
+  const { zipSync } = await import('fflate');
+  const modelo = await carregarModelo();
+  const arquivos: Record<string, Uint8Array> = {};
+  for (const [i, p] of publicadores.entries()) {
+    let nome = nomeArquivoS21(p, anoServico);
+    for (let n = 2; nome in arquivos; n++) nome = nomeArquivoS21(p, anoServico).replace(/\.pdf$/, ` (${n}).pdf`);
+    arquivos[nome] = await (await gerarS21(modelo, p, anoServico)).save();
+    progresso?.(i + 1, publicadores.length);
+  }
+  // PDFs já são comprimidos; nível 0 deixa o zip rápido.
+  return zipSync(arquivos, { level: 0 });
 }

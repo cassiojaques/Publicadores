@@ -38,6 +38,8 @@ export interface Publicador {
   telefone: string;
   endereco: string;
   anotacoes: string;
+  /** Marcado como inativo manualmente. Volta a ativo ao relatar participação num relatório importado. */
+  inativo: boolean;
   /** Mudou-se, faleceu etc. Não aparece nas listas padrão. */
   arquivado: boolean;
   relatorios: Record<string, RelatorioMes>;
@@ -87,6 +89,7 @@ export function novoPublicador(parcial: Partial<Publicador> = {}): Publicador {
     telefone: '',
     endereco: '',
     anotacoes: '',
+    inativo: false,
     arquivado: false,
     relatorios: {},
     ...parcial,

@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { cifrar, decifrar, derivarChave, SenhaIncorretaError } from '../src/crypto/crypto';
-import { anoServicoDe, mesesDoAnoServico, situacao, totaisAnoServico } from '../src/domain/serviceYear';
+import { anoServicoDe, interpretarData, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico } from '../src/domain/serviceYear';
 import { dbVazio, novoPublicador } from '../src/domain/types';
 import { aplicar, analisarJson, normalizarMes, prever } from '../src/import/relatorioCampo';
 import { moverPublicador } from '../src/store/store';
 import { gerarS21 } from '../src/pdf/s21';
+import { unzipSync } from 'fflate';
 import { gerarPdfGrupos } from '../src/pdf/grupos';
 import { lerLinhas, preverPlanilha, aplicarPlanilha, interpretarGrupo } from '../src/import/planilhaPublicadores';
 
@@ -128,5 +129,60 @@ describe('planilha de publicadores', () => {
     expect(db.grupos[0].superintendenteId).toBeNull();
     // Reimportar não duplica.
     expect(preverPlanilha(db, linhas).novos).toHaveLength(0);
+  });
+});
+
+describe('datas coladas', () => {
+  it('aceita formatos comuns', () => {
+    expect(interpretarData('15/03/1990')).toBe('1990-03-15');
+    expect(interpretarData(' 5-3-1990 ')).toBe('1990-03-05');
+    expect(interpretarData('15.03.1990')).toBe('1990-03-15');
+    expect(interpretarData('1990-03-15')).toBe('1990-03-15');
+    expect(interpretarData('15031990')).toBe('1990-03-15');
+    expect(interpretarData('15/03/90')).toBe('1990-03-15');
+    expect(interpretarData('15 de março de 1990')).toBe('1990-03-15');
+    expect(interpretarData('15 mar 1990')).toBe('1990-03-15');
+  });
+  it('rejeita datas inválidas', () => {
+    expect(interpretarData('31/02/2020')).toBeNull();
+    expect(interpretarData('abc')).toBeNull();
+    expect(interpretarData('')).toBeNull();
+  });
+});
+
+describe('ano de serviço e inativos', () => {
+  it('rótulo do ano de serviço', () => {
+    expect(rotuloAnoServico(2026)).toBe('Ano de Serviço 2026 (Setembro 2025 – Agosto 2026)');
+  });
+  it('inativo manual, automático após 6 meses e reativação na importação', () => {
+    const meses = new Set(['2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08']);
+    const p = novoPublicador({ nome: 'Fulano' });
+    expect(situacao(p, meses, '2026-08')).toBe('inativo'); // 6 meses sem relatar
+    p.relatorios['2026-08'] = { participou: true, estudos: null, auxiliar: false, horas: null, obs: '' };
+    expect(situacao(p, meses, '2026-08')).toBe('irregular');
+    p.inativo = true;
+    expect(situacao(p, meses, '2026-08')).toBe('inativo'); // marcado manualmente
+
+    const db = dbVazio();
+    db.publicadores.push(p);
+    const prev = prever(db, analisarJson(JSON.stringify([{ nome: 'Fulano', mes: '2026-09', participou: true }])));
+    expect(prev.itens[0].reativa).toBe(true);
+    aplicar(db, prev, 'x.json', false);
+    expect(p.inativo).toBe(false);
+  });
+});
+
+describe('cartões em lote', () => {
+  it('gera um zip com um PDF por publicador', async () => {
+    const { gerarS21Zip } = await import('../src/pdf/s21');
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(readFileSync('src/assets/S-21_T.pdf'))) as typeof fetch;
+    try {
+      const ps = [novoPublicador({ nome: 'Ana' }), novoPublicador({ nome: 'Ana' }), novoPublicador({ nome: 'Bia/X' })];
+      const nomes = Object.keys(unzipSync(await gerarS21Zip(ps, 2026))).sort();
+      expect(nomes).toEqual(['S-21 2026 - Ana (2).pdf', 'S-21 2026 - Ana.pdf', 'S-21 2026 - BiaX.pdf']);
+    } finally {
+      globalThis.fetch = orig;
+    }
   });
 });

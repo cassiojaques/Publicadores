@@ -91,7 +91,6 @@ export function Publicadores() {
         <select className="input w-auto" value={sit} onChange={(e) => setSit(e.target.value as Situacao | 'todos')}>
           <option value="todos">Qualquer situação</option>
           <option value="ativo">Ativos</option>
-          <option value="irregular">Irregulares</option>
           <option value="inativo">Inativos</option>
         </select>
         <label className="flex items-center gap-2 px-2 text-sm text-slate-600 dark:text-slate-400">

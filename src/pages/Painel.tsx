@@ -31,7 +31,7 @@ export function Painel() {
       pioneiros: ativos.filter((p) => p.privilegios.includes('pioneiro_regular') || p.privilegios.includes('pioneiro_especial')).length,
       anciaos: ativos.filter((p) => p.privilegios.includes('anciao')).length,
       servos: ativos.filter((p) => p.privilegios.includes('servo_ministerial')).length,
-      atencao: sit.filter((x) => x.s === 'irregular' || x.s === 'inativo'),
+      atencao: sit.filter((x) => x.s === 'inativo'),
       participaram: doMes.filter((r) => r!.participou).length,
       estudos: doMes.reduce((s, r) => s + (r!.estudos ?? 0), 0),
       horas: doMes.reduce((s, r) => s + (r!.horas ?? 0), 0),
@@ -77,7 +77,7 @@ export function Painel() {
         <Indicador icone={<Users size={18} />} cor="bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15" rotulo="Publicadores" valor={ativos.length} detalhe={`${stats.anciaos} anciãos · ${stats.servos} servos`} />
         <Indicador icone={<UsersRound size={18} />} cor="bg-sky-100 text-sky-600 dark:bg-sky-500/15" rotulo="Grupos de campo" valor={db.grupos.length} detalhe={stats.semGrupo ? `${stats.semGrupo} sem grupo` : 'Todos em grupos'} />
         <Indicador icone={<UserCheck size={18} />} cor="bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15" rotulo="Pioneiros" valor={stats.pioneiros} />
-        <Indicador icone={<AlertTriangle size={18} />} cor="bg-amber-100 text-amber-600 dark:bg-amber-500/15" rotulo="Irregulares / inativos" valor={stats.atencao.length} />
+        <Indicador icone={<AlertTriangle size={18} />} cor="bg-amber-100 text-amber-600 dark:bg-amber-500/15" rotulo="Inativos" valor={stats.atencao.length} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -115,7 +115,7 @@ export function Painel() {
         <div className="card p-5 lg:col-span-2">
           <h2 className="mb-3 font-semibold">Precisam de atenção</h2>
           {stats.atencao.length === 0 ? (
-            <p className="text-sm text-slate-500">Nenhum publicador irregular ou inativo nos últimos 6 meses.</p>
+            <p className="text-sm text-slate-500">Nenhum publicador inativo.</p>
           ) : (
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
               {stats.atencao.slice(0, 8).map(({ p, s }) => (

@@ -39,7 +39,8 @@ describe('ano de serviço', () => {
     p.relatorios['2025-10'] = { participou: true, estudos: 2, auxiliar: false, horas: 40, obs: '' };
     expect(totaisAnoServico(p, 2026)).toEqual({ horas: 90, mesesParticipou: 2, estudos: 3 });
     const meses = new Set(['2025-09', '2025-10', '2025-11']);
-    expect(situacao(p, meses, '2025-11')).toBe('irregular');
+    expect(situacao(p, meses, '2025-11')).toBe('ativo');
+    expect(situacao(novoPublicador({ nome: 'B' }), meses, '2025-11')).toBe('ativo'); // sem 6 meses de dados
     expect(situacao(p, new Set(['2025-09', '2025-10']), '2025-10')).toBe('ativo');
   });
 });
@@ -192,7 +193,7 @@ describe('ano de serviço e inativos', () => {
     const p = novoPublicador({ nome: 'Fulano' });
     expect(situacao(p, meses, '2026-08')).toBe('inativo'); // 6 meses sem relatar
     p.relatorios['2026-08'] = { participou: true, estudos: null, auxiliar: false, horas: null, obs: '' };
-    expect(situacao(p, meses, '2026-08')).toBe('irregular');
+    expect(situacao(p, meses, '2026-08')).toBe('ativo');
     p.inativo = true;
     expect(situacao(p, meses, '2026-08')).toBe('inativo'); // marcado manualmente
 

@@ -80,20 +80,16 @@ export function totaisAnoServico(p: Publicador, anoServico: number) {
   return { horas, mesesParticipou, estudos };
 }
 
-export type Situacao = 'ativo' | 'irregular' | 'inativo' | 'sem_dados';
+export type Situacao = 'ativo' | 'inativo';
 
 /**
- * Inativo: marcado manualmente, ou não participou em nenhum dos últimos 6 meses.
- * Irregular: deixou de participar em ao menos um dos últimos 6 meses.
- * Considera apenas meses que já têm relatórios na congregação.
+ * Inativo: marcado manualmente, ou não participou em nenhum dos últimos 6 meses
+ * (considerando apenas meses que já têm relatórios na congregação). Os demais são ativos.
  */
 export function situacao(p: Publicador, mesesComDados: Set<string>, ate = mesRelatorioAtual()): Situacao {
   if (p.inativo) return 'inativo';
   const janela = ultimosMeses(6, ate).filter((k) => mesesComDados.has(k));
-  if (janela.length === 0) return 'sem_dados';
-  const participou = janela.filter((k) => p.relatorios[k]?.participou).length;
-  if (participou === 0 && janela.length === 6) return 'inativo';
-  if (participou < janela.length) return 'irregular';
+  if (janela.length === 6 && !janela.some((k) => p.relatorios[k]?.participou)) return 'inativo';
   return 'ativo';
 }
 

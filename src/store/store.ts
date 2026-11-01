@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { cifrar, decifrar, derivarChave, type Chave } from '../crypto/crypto';
-import { dbVazio, type Db } from '../domain/types';
+import { dbVazio, type Db, type RelatorioMes } from '../domain/types';
+import { relatorioVazio } from '../domain/serviceYear';
 import { ConflitoError, type Armazenamento } from '../storage/storage';
 
 export type Pagina =
@@ -8,6 +9,7 @@ export type Pagina =
   | { nome: 'publicadores' }
   | { nome: 'publicador'; id: string }
   | { nome: 'grupos' }
+  | { nome: 'relatorios'; mes?: string }
   | { nome: 'importar' }
   | { nome: 'config' };
 
@@ -153,6 +155,41 @@ export const useStore = create<Estado>((set, get) => ({
 }));
 
 // Seletores e ações de domínio -------------------------------------------------
+
+// Relatórios mensais ---------------------------------------------------------
+// Um relatório existir em `p.relatorios[mes]` significa "entregue" (mesmo sem participação).
+// O cartão S-21 e o menu Relatórios leem e gravam esses mesmos dados.
+
+/** Registra o mês na lista de meses da congregação (importado ou criado à mão). */
+export function garantirMes(db: Db, mes: string, arquivo = '') {
+  if (db.importacoes.some((i) => i.mes === mes)) return;
+  db.importacoes.push({ mes, arquivo, data: new Date().toISOString(), registros: 0 });
+  db.importacoes.sort((a, b) => a.mes.localeCompare(b.mes));
+}
+
+export function definirRelatorio<K extends keyof RelatorioMes>(
+  db: Db,
+  publicadorId: string,
+  mes: string,
+  campo: K,
+  valor: RelatorioMes[K],
+) {
+  const p = db.publicadores.find((x) => x.id === publicadorId);
+  if (!p) return;
+  p.relatorios[mes] = { ...(p.relatorios[mes] ?? relatorioVazio()), [campo]: valor };
+  garantirMes(db, mes);
+}
+
+export function excluirRelatorio(db: Db, publicadorId: string, mes: string) {
+  const p = db.publicadores.find((x) => x.id === publicadorId);
+  if (p) delete p.relatorios[mes];
+}
+
+/** Remove o mês inteiro: o registro do mês e o relatório de todos os publicadores. */
+export function excluirMes(db: Db, mes: string) {
+  db.importacoes = db.importacoes.filter((i) => i.mes !== mes);
+  for (const p of db.publicadores) delete p.relatorios[mes];
+}
 
 /** Meses com relatórios na congregação: importados ou digitados no cartão de alguém. */
 export function mesesComDados(db: Db): Set<string> {

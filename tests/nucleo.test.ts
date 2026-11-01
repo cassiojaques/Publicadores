@@ -5,7 +5,8 @@ import { cifrar, decifrar, derivarChave, SenhaIncorretaError } from '../src/cryp
 import { anoServicoDe, interpretarData, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico } from '../src/domain/serviceYear';
 import { dbVazio, novoPublicador } from '../src/domain/types';
 import { aplicar, analisarJson, normalizarMes, prever } from '../src/import/relatorioCampo';
-import { moverPublicador } from '../src/store/store';
+import { definirRelatorio, excluirMes, excluirRelatorio, mesesComDados, moverPublicador } from '../src/store/store';
+import { statusDoMes, textoFaltantes, totaisDoMes } from '../src/domain/relatorios';
 import { gerarS21 } from '../src/pdf/s21';
 import { unzipSync } from 'fflate';
 import { gerarPdfGrupos } from '../src/pdf/grupos';
@@ -184,5 +185,45 @@ describe('cartões em lote', () => {
     } finally {
       globalThis.fetch = orig;
     }
+  });
+});
+
+describe('menu de relatórios', () => {
+  function montar() {
+    const db = dbVazio();
+    db.grupos.push({ id: 'g1', nome: 'Grupo 1', superintendenteId: null, ajudanteId: null });
+    const ana = novoPublicador({ nome: 'Ana', grupoId: 'g1', privilegios: ['pioneiro_regular'] });
+    const bia = novoPublicador({ nome: 'Bia', grupoId: 'g1' });
+    const caio = novoPublicador({ nome: 'Caio', grupoId: 'g1', inativo: true });
+    const davi = novoPublicador({ nome: 'Davi', arquivado: true });
+    db.publicadores.push(ana, bia, caio, davi);
+    return { db, ana, bia, caio };
+  }
+
+  it('separa quem relatou, quem falta e inativos, e soma no formato S-1', () => {
+    const { db, ana, bia } = montar();
+    definirRelatorio(db, ana.id, '2026-10', 'participou', true);
+    definirRelatorio(db, ana.id, '2026-10', 'horas', 50);
+    definirRelatorio(db, ana.id, '2026-10', 'estudos', 2);
+    expect(db.importacoes.map((i) => i.mes)).toEqual(['2026-10']); // mês registrado ao editar
+    const linhas = statusDoMes(db, '2026-10', mesesComDados(db));
+    expect(Object.fromEntries(linhas.map((l) => [l.p.nome, l.status]))).toEqual({ Ana: 'relatou', Bia: 'falta', Caio: 'inativo' });
+    expect(totaisDoMes(linhas).regulares).toEqual({ relatorios: 1, estudos: 2, horas: 50 });
+    expect(textoFaltantes(db, linhas)).toBe('Grupo 1\nBia');
+    // Relatório sem participação conta como entregue.
+    definirRelatorio(db, bia.id, '2026-10', 'participou', false);
+    expect(statusDoMes(db, '2026-10', mesesComDados(db)).find((l) => l.p.id === bia.id)?.status).toBe('relatou');
+  });
+
+  it('exclui um relatório ou o mês inteiro, refletindo nos cartões', () => {
+    const { db, ana, bia } = montar();
+    definirRelatorio(db, ana.id, '2026-10', 'participou', true);
+    definirRelatorio(db, bia.id, '2026-10', 'participou', true);
+    excluirRelatorio(db, bia.id, '2026-10');
+    expect(bia.relatorios['2026-10']).toBeUndefined();
+    expect(ana.relatorios['2026-10']?.participou).toBe(true);
+    excluirMes(db, '2026-10');
+    expect(ana.relatorios['2026-10']).toBeUndefined();
+    expect(db.importacoes).toHaveLength(0);
   });
 });

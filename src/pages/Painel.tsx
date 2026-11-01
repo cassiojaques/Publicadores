@@ -85,7 +85,9 @@ export function Painel() {
           <h2 className="font-semibold">Último relatório</h2>
           {ultimoMes ? (
             <>
-              <p className="text-sm text-slate-500">{nomeMes(ultimoMes)}</p>
+              <button className="block text-left text-sm text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => navegar({ nome: 'relatorios', mes: ultimoMes })}>
+                {nomeMes(ultimoMes)} · ver relatórios
+              </button>
               <dl className="mt-4 space-y-3 text-sm">
                 <div className="flex justify-between">
                   <dt className="flex items-center gap-2 text-slate-500"><UserCheck size={16} /> Participaram</dt>

@@ -67,7 +67,7 @@ function ImportarRelatorio() {
     });
     toast(`${n} relatórios importados.`);
     setPrevia(null);
-    navegar({ nome: 'painel' });
+    navegar({ nome: 'relatorios', mes: previa.meses[previa.meses.length - 1] });
   }
 
   const encontrados = previa?.itens.filter((i) => i.publicador) ?? [];
@@ -201,7 +201,9 @@ function ImportarRelatorio() {
           <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
             {[...db.importacoes].reverse().map((i) => (
               <li key={i.mes} className="flex justify-between py-2">
-                <span className="font-medium">{nomeMes(i.mes)}</span>
+                <button className="font-medium text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => navegar({ nome: 'relatorios', mes: i.mes })}>
+                  {nomeMes(i.mes)}
+                </button>
                 <span className="text-slate-500">
                   {i.registros} registros · {i.arquivo} · {new Date(i.data).toLocaleDateString('pt-BR')}
                 </span>

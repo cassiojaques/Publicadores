@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Archive, ArchiveRestore, ArrowLeft, Download, Loader2, Pencil, Trash2, UserCheck, UserX } from 'lucide-react';
-import { mesesComDados, useStore } from '../store/store';
+import { Archive, ArchiveRestore, ArrowLeft, Download, Loader2, Pencil, Trash2, UserCheck, UserX, X } from 'lucide-react';
+import { definirRelatorio, excluirRelatorio, mesesComDados, useStore } from '../store/store';
 import {
-  anosServicoComDados, formatarData, MESES_ANO_SERVICO, mesesDoAnoServico, relatorioVazio, rotuloAnoServico, situacao, totaisAnoServico,
+  anosServicoComDados, formatarData, MESES_ANO_SERVICO, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico,
 } from '../domain/serviceYear';
 import { PRIVILEGIOS, type RelatorioMes } from '../domain/types';
 import { Avatar, BadgeSituacao, Confirmar } from '../components/ui';
@@ -49,14 +49,8 @@ export function PublicadorDetalhe({ id }: { id: string }) {
   const meses = mesesDoAnoServico(ano);
   const tot = totaisAnoServico(p, ano);
 
-  function editarMes(mes: string, campo: keyof RelatorioMes, valor: RelatorioMes[keyof RelatorioMes]) {
-    atualizar((d) => {
-      const x = d.publicadores.find((y) => y.id === id)!;
-      const r = { ...(x.relatorios[mes] ?? relatorioVazio()), [campo]: valor };
-      const vazio = !r.participou && !r.auxiliar && r.estudos === null && r.horas === null && !r.obs;
-      if (vazio) delete x.relatorios[mes];
-      else x.relatorios[mes] = r;
-    });
+  function editarMes<K extends keyof RelatorioMes>(mes: string, campo: K, valor: RelatorioMes[K]) {
+    atualizar((d) => definirRelatorio(d, id, mes, campo, valor));
   }
 
   async function exportar() {
@@ -195,7 +189,20 @@ export function PublicadorDetalhe({ id }: { id: string }) {
                 const r = p.relatorios[mes];
                 return (
                   <tr key={mes} className="divide-x divide-slate-200 dark:divide-slate-800">
-                    <td className="td">{MESES_ANO_SERVICO[i]}</td>
+                    <td className="td">
+                      <span className="flex items-center justify-between gap-1">
+                        {MESES_ANO_SERVICO[i]}
+                        {r && (
+                          <button
+                            className="rounded p-0.5 text-slate-300 hover:bg-rose-50 hover:text-rose-600 dark:text-slate-600 dark:hover:bg-rose-500/10"
+                            title={`Excluir o relatório de ${MESES_ANO_SERVICO[i]}`}
+                            onClick={() => atualizar((d) => excluirRelatorio(d, id, mes))}
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </span>
+                    </td>
                     <td className="text-center">
                       <input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={!!r?.participou} onChange={(e) => editarMes(mes, 'participou', e.target.checked)} aria-label={`Participou em ${MESES_ANO_SERVICO[i]}`} />
                     </td>

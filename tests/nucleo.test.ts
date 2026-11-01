@@ -103,7 +103,18 @@ describe('PDFs', () => {
     db.grupos.push({ id: 'g1', nome: 'Grupo 1', superintendenteId: null, ajudanteId: null });
     for (let i = 0; i < 120; i++) db.publicadores.push(novoPublicador({ nome: `Publicador ${i}`, grupoId: 'g1' }));
     const bytes = await gerarPdfGrupos(db);
-    expect((await PDFDocument.load(bytes)).getPageCount()).toBeGreaterThanOrEqual(1);
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
+  });
+  it('PDF dos grupos sempre numa página e respeita "apenas ativos"', async () => {
+    const db = dbVazio('Central');
+    for (let g = 1; g <= 9; g++) {
+      db.grupos.push({ id: `g${g}`, nome: `Grupo ${g}`, superintendenteId: null, ajudanteId: null });
+      for (let i = 0; i < 25; i++) db.publicadores.push(novoPublicador({ nome: `Pub ${g}-${i}`, grupoId: `g${g}`, inativo: i === 0 }));
+    }
+    for (const soAtivos of [false, true]) {
+      const pdf = await PDFDocument.load(await gerarPdfGrupos(db, { soAtivos }));
+      expect(pdf.getPageCount()).toBe(1);
+    }
   });
 });
 

@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import Fuse from 'fuse.js';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
-  AlertTriangle, Check, ClipboardList, CloudUpload, FileInput, LayoutDashboard, Lock, Moon, Search, Settings, Sun, Users, UsersRound,
+  AlertTriangle, Check, ClipboardList, CloudUpload, FileInput, LayoutDashboard, Lock, Moon, Settings, Sun, Users, UsersRound,
 } from 'lucide-react';
 import { useStore, type Pagina } from '../store/store';
-import { Avatar, BadgesPrivilegio } from './ui';
 import { ReabrirComSenha } from './ReabrirComSenha';
 import { BotaoInstalarTopo } from './Instalar';
 
@@ -36,96 +34,6 @@ export function useTema() {
     }
   }, [escuro]);
   return [escuro, setEscuro] as const;
-}
-
-function Busca() {
-  const { db, navegar } = useStore();
-  const [q, setQ] = useState('');
-  const [aberto, setAberto] = useState(false);
-  const [sel, setSel] = useState(0);
-  const ref = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        ref.current?.focus();
-        ref.current?.select();
-      }
-    };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, []);
-
-  const fuse = useMemo(() => {
-    const itens = [
-      ...db.publicadores.map((p) => ({ tipo: 'p' as const, id: p.id, nome: p.nome, extra: p.telefone })),
-      ...db.grupos.map((g) => ({ tipo: 'g' as const, id: g.id, nome: g.nome, extra: '' })),
-    ];
-    return new Fuse(itens, { keys: ['nome', 'extra'], threshold: 0.35, ignoreLocation: true });
-  }, [db.publicadores, db.grupos]);
-
-  const resultados = q.trim() ? fuse.search(q.trim(), { limit: 8 }).map((r) => r.item) : [];
-
-  function ir(i: (typeof resultados)[number]) {
-    navegar(i.tipo === 'p' ? { nome: 'publicador', id: i.id } : { nome: 'grupos' });
-    setQ('');
-    setAberto(false);
-    ref.current?.blur();
-  }
-
-  return (
-    <div className="relative w-full max-w-xl">
-      <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-      <input
-        ref={ref}
-        className="input pl-9 pr-16"
-        placeholder="Pesquisar publicadores e grupos…"
-        value={q}
-        onChange={(e) => {
-          setQ(e.target.value);
-          setSel(0);
-          setAberto(true);
-        }}
-        onFocus={() => setAberto(true)}
-        onBlur={() => setTimeout(() => setAberto(false), 150)}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowDown') setSel((s) => Math.min(s + 1, resultados.length - 1));
-          else if (e.key === 'ArrowUp') setSel((s) => Math.max(s - 1, 0));
-          else if (e.key === 'Enter' && resultados[sel]) ir(resultados[sel]);
-          else if (e.key === 'Escape') ref.current?.blur();
-        }}
-      />
-      <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-slate-200 px-1.5 text-[10px] text-slate-400 dark:border-slate-700">
-        Ctrl K
-      </kbd>
-      {aberto && q.trim() && (
-        <div className="card absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden p-1">
-          {resultados.length === 0 && <p className="px-3 py-2 text-sm text-slate-500">Nada encontrado.</p>}
-          {resultados.map((r, i) => {
-            const p = r.tipo === 'p' ? db.publicadores.find((x) => x.id === r.id)! : null;
-            const grupo = p ? db.grupos.find((g) => g.id === p.grupoId) : null;
-            return (
-              <button
-                key={r.tipo + r.id}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => ir(r)}
-                onMouseEnter={() => setSel(i)}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm ${
-                  i === sel ? 'bg-slate-100 dark:bg-slate-800' : ''
-                }`}
-              >
-                {p ? <Avatar nome={p.nome} tamanho={26} /> : <UsersRound size={20} className="text-indigo-500" />}
-                <span className="flex-1 truncate">{r.nome}</span>
-                {p && <BadgesPrivilegio p={p} />}
-                <span className="text-xs text-slate-400">{p ? grupo?.nome ?? 'Sem grupo' : 'Grupo'}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
 }
 
 function StatusSalvar() {
@@ -194,7 +102,6 @@ export function Layout({ children }: { children: ReactNode }) {
               </option>
             ))}
           </select>
-          <Busca />
           <div className="ml-auto flex items-center gap-1">
             <BotaoInstalarTopo />
             <StatusSalvar />

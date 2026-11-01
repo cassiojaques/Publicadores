@@ -3,9 +3,10 @@ import {
   DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core';
 import { Download, GripVertical, Loader2, MoreHorizontal, Pencil, Plus, Trash2, UserPlus, UsersRound } from 'lucide-react';
-import { moverPublicador, removerGrupo, useStore } from '../store/store';
+import { mesesComDados, moverPublicador, removerGrupo, useStore } from '../store/store';
+import { situacao } from '../domain/serviceYear';
 import { novoId, type Grupo, type Publicador } from '../domain/types';
-import { Avatar, BadgesPrivilegio, Confirmar, Modal, Vazio } from '../components/ui';
+import { BadgesPrivilegio, Confirmar, Modal, Vazio } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
 import { gerarPdfGrupos } from '../pdf/grupos';
 import { salvarArquivoGerado } from '../storage/storage';
@@ -15,12 +16,11 @@ const SEM_GRUPO = '__sem__';
 function Chip({ p, funcao, arrastando }: { p: Publicador; funcao?: 'S' | 'A'; arrastando?: boolean }) {
   return (
     <div
-      className={`flex items-center gap-2 rounded-lg border bg-white px-2 py-1.5 text-sm dark:bg-slate-900 ${
+      className={`flex items-center gap-1.5 rounded-md border bg-white px-1.5 py-0.5 text-sm dark:bg-slate-900 ${
         arrastando ? 'border-indigo-400 shadow-lg' : 'border-slate-200 dark:border-slate-800'
       }`}
     >
-      <GripVertical size={14} className="shrink-0 text-slate-300" />
-      <Avatar nome={p.nome} tamanho={22} />
+      <GripVertical size={12} className="shrink-0 text-slate-300" />
       <span className="flex-1 truncate">{p.nome}</span>
       {funcao && (
         <span className="badge bg-indigo-600 text-white" title={funcao === 'S' ? 'Superintendente' : 'Ajudante'}>
@@ -90,9 +90,12 @@ function Coluna({
         isOver ? 'ring-2 ring-indigo-500' : ''
       } ${grupo ? '' : 'border-dashed'}`}
     >
-      <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+      <div className="flex items-center gap-1 border-b border-slate-200 px-3 py-2 dark:border-slate-800">
         <h3 className="flex-1 truncate font-semibold">{grupo?.nome ?? 'Sem grupo'}</h3>
         <span className="badge bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">{membros.length}</span>
+        <button className="btn-ghost p-1" onClick={onAdicionar} title="Novo publicador neste grupo" aria-label="Novo publicador neste grupo">
+          <UserPlus size={16} />
+        </button>
         {grupo && (
           <div className="relative">
             <button className="btn-ghost p-1" onClick={() => setMenu(!menu)} onBlur={() => setTimeout(() => setMenu(false), 150)} aria-label="Opções do grupo">
@@ -113,7 +116,7 @@ function Coluna({
       </div>
 
       {grupo && (
-        <div className="space-y-2 border-b border-slate-200 px-4 py-3 text-sm dark:border-slate-800">
+        <div className="space-y-1 border-b border-slate-200 px-3 py-2 text-sm dark:border-slate-800">
           {(
             [
               ['superintendenteId', 'Superintendente'],
@@ -121,8 +124,8 @@ function Coluna({
             ] as const
           ).map(([campo, rotulo]) => (
             <label key={campo} className="flex items-center gap-2">
-              <span className="w-28 shrink-0 text-xs font-medium uppercase tracking-wide text-indigo-600 dark:text-indigo-400">{rotulo}</span>
-              <select className="input py-1" value={grupo[campo] ?? ''} onChange={(e) => setFuncao(campo, e.target.value)}>
+              <span className="w-12 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400" title={rotulo}>{rotulo === 'Superintendente' ? 'Sup.' : 'Aj.'}</span>
+              <select className="input px-2 py-0.5" value={grupo[campo] ?? ''} onChange={(e) => setFuncao(campo, e.target.value)}>
                 <option value="">— definir —</option>
                 {irmaos.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -138,7 +141,7 @@ function Coluna({
         </div>
       )}
 
-      <div className="flex min-h-[80px] flex-1 flex-col gap-1.5 p-3">
+      <div className="flex min-h-[48px] flex-1 flex-col gap-1 p-2">
         {ordenados.map((p) => {
           const funcao = grupo?.superintendenteId === p.id ? 'S' : grupo?.ajudanteId === p.id ? 'A' : undefined;
           const casa = !destaque || p.nome.toLowerCase().includes(destaque.toLowerCase());
@@ -148,11 +151,8 @@ function Coluna({
             </div>
           );
         })}
-        {membros.length === 0 && <p className="py-4 text-center text-xs text-slate-400">Arraste publicadores para cá</p>}
+        {membros.length === 0 && <p className="py-2 text-center text-xs text-slate-400">Arraste publicadores para cá</p>}
       </div>
-      <button className="btn-ghost m-2 mt-0 justify-start text-slate-500" onClick={onAdicionar}>
-        <UserPlus size={16} /> Novo publicador
-      </button>
     </div>
   );
 }
@@ -165,17 +165,33 @@ export function Grupos() {
   const [novoEm, setNovoEm] = useState<string | null | undefined>(undefined);
   const [destaque, setDestaque] = useState('');
   const [gerando, setGerando] = useState(false);
+  const [soAtivos, setSoAtivos] = useState(() => {
+    try {
+      return localStorage.getItem('publicadores.grupos.soAtivos') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const mudarSoAtivos = (v: boolean) => {
+    setSoAtivos(v);
+    try {
+      localStorage.setItem('publicadores.grupos.soAtivos', v ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  };
   const sensores = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  const meses = useMemo(() => mesesComDados(db), [db]);
   const porGrupo = useMemo(() => {
     const m = new Map<string, Publicador[]>();
     for (const p of db.publicadores) {
-      if (p.arquivado) continue;
+      if (p.arquivado || (soAtivos && situacao(p, meses) === 'inativo')) continue;
       const k = p.grupoId ?? SEM_GRUPO;
       m.set(k, [...(m.get(k) ?? []), p]);
     }
     return m;
-  }, [db.publicadores]);
+  }, [db.publicadores, soAtivos, meses]);
 
   function soltar(e: DragEndEvent) {
     setArrastado(null);
@@ -201,7 +217,7 @@ export function Grupos() {
   async function exportarPdf() {
     setGerando(true);
     try {
-      if (await salvarArquivoGerado('Grupos de Campo.pdf', await gerarPdfGrupos(db), 'application/pdf')) toast('PDF dos grupos exportado.');
+      if (await salvarArquivoGerado('Grupos de Campo.pdf', await gerarPdfGrupos(db, { soAtivos }), 'application/pdf')) toast('PDF dos grupos exportado.');
     } catch (e) {
       toast(`Erro ao gerar PDF: ${(e as Error).message}`, 'erro');
     } finally {
@@ -219,7 +235,11 @@ export function Grupos() {
           <h1 className="text-2xl font-semibold">Grupos de campo</h1>
           <p className="text-sm text-slate-500">Arraste os publicadores entre os grupos para mudá-los.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 px-1 text-sm text-slate-600 dark:text-slate-400" title="Esconde os inativos aqui e no PDF">
+            <input type="checkbox" className="accent-indigo-600" checked={soAtivos} onChange={(e) => mudarSoAtivos(e.target.checked)} />
+            Apenas ativos
+          </label>
           <input className="input w-48" placeholder="Destacar nome…" value={destaque} onChange={(e) => setDestaque(e.target.value)} />
           <button className="btn-outline" onClick={exportarPdf} disabled={gerando || db.grupos.length === 0}>
             {gerando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} PDF
@@ -240,8 +260,8 @@ export function Grupos() {
         </div>
       ) : (
         <DndContext sensors={sensores} onDragStart={(e) => setArrastado(String(e.active.id))} onDragEnd={soltar} onDragCancel={() => setArrastado(null)}>
-          <div className="grid items-start gap-4 pb-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {(semGrupo.length > 0 || arrastado) && (
+          <div className="grid items-start gap-3 pb-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            {semGrupo.length > 0 && (
               <Coluna grupo={null} membros={semGrupo} destaque={destaque} onAdicionar={() => setNovoEm(null)} />
             )}
             {db.grupos.map((g) => (

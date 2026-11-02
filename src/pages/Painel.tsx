@@ -23,9 +23,9 @@ const META_MES_PIONEIRO = 50;
 const MESES_SEM_PARTICIPAR = 3;
 const pct = (parte: number, total: number) => (total ? Math.round((parte / total) * 100) : 0);
 
-function Indicador({ icone, rotulo, valor, detalhe, cor }: { icone: ReactNode; rotulo: string; valor: ReactNode; detalhe?: string; cor: string }) {
+function Indicador({ icone, rotulo, valor, detalhe, cor, onClick }: { icone: ReactNode; rotulo: string; valor: ReactNode; detalhe?: string; cor: string; onClick: () => void }) {
   return (
-    <div className="card relative overflow-hidden p-4">
+    <button className="card relative overflow-hidden p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md" onClick={onClick} title={`Ver ${rotulo.toLowerCase()}`}>
       {/* Faixa colorida no topo, na cor do ícone. */}
       <span className={`absolute inset-x-0 top-0 h-1 bg-current opacity-70 ${cor.split(' ').find((c) => c.startsWith('text-'))}`} />
       <div className="flex items-center gap-3">
@@ -34,7 +34,7 @@ function Indicador({ icone, rotulo, valor, detalhe, cor }: { icone: ReactNode; r
       </div>
       <p className="mt-3 text-3xl font-semibold tabular-nums">{valor}</p>
       {detalhe && <p className="mt-1 text-xs text-slate-500">{detalhe}</p>}
-    </div>
+    </button>
   );
 }
 
@@ -62,12 +62,12 @@ function SemParticipar({ ate, lista }: { ate: string | null; lista: { p: Publica
   const corDe = (m: number) => (m >= 12 ? 'bg-rose-500' : m >= 6 ? 'bg-orange-500' : 'bg-amber-400');
   return (
     <Cartao
-      titulo={`Sem participar há ${MESES_SEM_PARTICIPAR} meses ou mais`}
+      titulo="Irregulares"
       icone={<UserX size={18} />}
-      subtitulo={ate ? `${lista.length} ${lista.length === 1 ? 'publicador' : 'publicadores'} · meses seguidos até ${nomeMes(ate)}` : 'Sem relatórios ainda'}
+      subtitulo={ate ? `${lista.length} ativos há ${MESES_SEM_PARTICIPAR} meses ou mais sem participar · até ${nomeMes(ate)}` : 'Sem relatórios ainda'}
     >
       {lista.length === 0 ? (
-        <p className="text-sm text-slate-500">Todos participaram em pelo menos um dos últimos {MESES_SEM_PARTICIPAR} meses.</p>
+        <p className="text-sm text-slate-500">Todos os ativos participaram em pelo menos um dos últimos {MESES_SEM_PARTICIPAR} meses.</p>
       ) : (
         <div className="space-y-3">
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
@@ -271,9 +271,12 @@ export function Painel() {
 
   // Meses seguidos sem participar, contados para trás a partir do último mês que já tem relatos
   // (um mês recém-aberto, ainda sem ninguém relatado, não conta como falta).
+  // Quem já está inativo fica de fora: aparece no quadro de inativos.
   const semParticipar = useMemo(() => {
+    const inativos = new Set(stats.atencao.map((x) => x.p.id));
     const comRelatos = [...meses].filter((k) => k <= mesEsperado && ativos.some((p) => p.relatorios[k]?.participou)).sort().reverse();
     const lista = ativos
+      .filter((p) => !inativos.has(p.id))
       .map((p) => {
         const i = comRelatos.findIndex((k) => p.relatorios[k]?.participou);
         return { p, meses: i === -1 ? comRelatos.length : i };
@@ -281,7 +284,7 @@ export function Painel() {
       .filter((x) => x.meses >= MESES_SEM_PARTICIPAR)
       .sort((a, b) => b.meses - a.meses || a.p.nome.localeCompare(b.p.nome, 'pt-BR'));
     return { ate: comRelatos[0] ?? null, lista };
-  }, [ativos, meses, mesEsperado]);
+  }, [ativos, meses, mesEsperado, stats.atencao]);
 
   // Aniversários de batismo no mês corrente.
   const hoje = new Date();
@@ -355,29 +358,34 @@ export function Painel() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Indicador icone={<Users size={18} />} cor="bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15" rotulo="Publicadores ativos" valor={ativos.length - stats.atencao.length} detalhe={`Total ${ativos.length} · ${stats.atencao.length} inativos`} />
-        <Indicador icone={<UsersRound size={18} />} cor="bg-sky-100 text-sky-600 dark:bg-sky-500/15" rotulo="Grupos de campo" valor={db.grupos.length} detalhe={stats.semGrupo ? `${stats.semGrupo} sem grupo` : 'Todos em grupos'} />
-        <Indicador icone={<UserCheck size={18} />} cor="bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15" rotulo="Pioneiros" valor={stats.pioneiros} detalhe={ultimoMes ? `+ ${stats.auxiliares} auxiliares em ${mesCurto(ultimoMes)}` : undefined} />
-        <Indicador icone={<AlertTriangle size={18} />} cor="bg-amber-100 text-amber-600 dark:bg-amber-500/15" rotulo="Inativos" valor={stats.atencao.length} detalhe={`${pct(stats.atencao.length, ativos.length)}% dos publicadores`} />
-      </div>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <Indicador icone={<Users size={18} />} cor="bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15" rotulo="Publicadores ativos" valor={ativos.length - stats.atencao.length} detalhe={`Total ${ativos.length} · ${stats.atencao.length} inativos`} onClick={() => navegar({ nome: 'publicadores', filtro: { situacoes: ['ativo'] } })} />
+        <Indicador icone={<UsersRound size={18} />} cor="bg-sky-100 text-sky-600 dark:bg-sky-500/15" rotulo="Grupos de campo" valor={db.grupos.length} detalhe={stats.semGrupo ? `${stats.semGrupo} sem grupo` : 'Todos em grupos'} onClick={() => navegar({ nome: 'grupos' })} />
+        <Indicador icone={<UserCheck size={18} />} cor="bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15" rotulo="Pioneiros" valor={stats.pioneiros} detalhe={ultimoMes ? `+ ${stats.auxiliares} auxiliares em ${mesCurto(ultimoMes)}` : undefined} onClick={() => navegar({ nome: 'publicadores', filtro: { designacoes: ['pioneiro_regular', 'pioneiro_especial'] } })} />
+        <Indicador icone={<AlertTriangle size={18} />} cor="bg-amber-100 text-amber-600 dark:bg-amber-500/15" rotulo="Inativos" valor={stats.atencao.length} detalhe={`${pct(stats.atencao.length, ativos.length)}% dos publicadores`} onClick={() => navegar({ nome: 'publicadores', filtro: { situacoes: ['inativo'] } })} />
 
-      <MetaPioneiros anoServico={anoServico} {...pioneiros} />
-
-      <SemParticipar {...semParticipar} />
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Cartao titulo="Aniversários de batismo" icone={<Droplets size={18} />} subtitulo={nomeMes(`${anoHoje}-${mesHoje}`).split(' ')[0]}>
+        <div className="card relative col-span-2 flex flex-col overflow-hidden p-4 lg:col-span-1">
+          <span className="absolute inset-x-0 top-0 h-1 bg-sky-500 opacity-70" />
+          <div className="flex items-center gap-3">
+            <span className="rounded-lg bg-sky-100 p-2 text-sky-600 dark:bg-sky-500/15">
+              <Droplets size={18} />
+            </span>
+            <span className="text-sm text-slate-500">Batismo em {nomeMes(`${anoHoje}-${mesHoje}`).split(' ')[0].toLowerCase()}</span>
+          </div>
           {aniversarios.length === 0 ? (
-            <p className="text-sm text-slate-500">Nenhum aniversário de batismo neste mês.</p>
+            <p className="mt-3 text-xs text-slate-500">Nenhum aniversário de batismo neste mês.</p>
           ) : (
-            <ul className="max-h-72 space-y-1 overflow-y-auto">
+            <ul className="mt-2 max-h-24 flex-1 space-y-0.5 overflow-y-auto pr-1">
               {aniversarios.map((a) => (
                 <li key={a.p.id}>
-                  <button className="flex w-full items-center gap-3 rounded-lg px-1 py-1.5 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800/60" onClick={() => navegar({ nome: 'publicador', id: a.p.id })}>
-                    <span className="w-7 shrink-0 text-center font-semibold tabular-nums text-sky-600 dark:text-sky-400">{a.dia}</span>
+                  <button
+                    className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-xs hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                    title={`${a.p.nome} · ${a.anos} ${a.anos === 1 ? 'ano' : 'anos'} de batismo`}
+                    onClick={() => navegar({ nome: 'publicador', id: a.p.id })}
+                  >
+                    <span className="w-5 shrink-0 text-right font-semibold tabular-nums text-sky-600 dark:text-sky-400">{a.dia}</span>
                     <span className="flex-1 truncate">{a.p.nome}</span>
-                    <span className="shrink-0 text-xs text-slate-500">
+                    <span className="shrink-0 tabular-nums text-slate-500">
                       {a.anos} {a.anos === 1 ? 'ano' : 'anos'}
                     </span>
                   </button>
@@ -385,18 +393,24 @@ export function Painel() {
               ))}
             </ul>
           )}
-        </Cartao>
+        </div>
+      </div>
 
-        <Cartao titulo="Precisam de atenção" icone={<AlertTriangle size={18} />} subtitulo={stats.atencao.length > 8 ? `Mostrando 8 de ${stats.atencao.length}` : undefined} className="lg:col-span-2">
+      <MetaPioneiros anoServico={anoServico} {...pioneiros} />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SemParticipar {...semParticipar} />
+
+        <Cartao titulo="Inativos" icone={<AlertTriangle size={18} />} subtitulo={`${stats.atencao.length} ${stats.atencao.length === 1 ? 'publicador' : 'publicadores'} · marcados à mão ou 6 meses sem participar`}>
           {stats.atencao.length === 0 ? (
             <p className="text-sm text-slate-500">Nenhum publicador inativo.</p>
           ) : (
-            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-              {stats.atencao.slice(0, 8).map(({ p, s }) => (
+            <ul className="max-h-96 divide-y divide-slate-100 overflow-y-auto pr-1 dark:divide-slate-800">
+              {stats.atencao.map(({ p, s }) => (
                 <li key={p.id}>
                   <button className="flex w-full items-center gap-3 py-2 text-left text-sm" onClick={() => navegar({ nome: 'publicador', id: p.id })}>
                     <Avatar nome={p.nome} tamanho={28} />
-                    <span className="flex-1">{p.nome}</span>
+                    <span className="flex-1 truncate">{p.nome}</span>
                     <span className="text-xs text-slate-400">{db.grupos.find((g) => g.id === p.grupoId)?.nome ?? 'Sem grupo'}</span>
                     <BadgeSituacao s={s} />
                   </button>

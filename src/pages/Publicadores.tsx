@@ -101,12 +101,13 @@ const selectCelula =
   'rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm outline-none hover:border-slate-300 focus:border-indigo-500 dark:hover:border-slate-700 dark:bg-transparent';
 
 export function Publicadores() {
-  const { db, navegar, atualizar, toast } = useStore();
+  const { db, navegar, atualizar, toast, pagina } = useStore();
+  const filtroInicial = pagina.nome === 'publicadores' ? pagina.filtro : undefined;
   const [q, setQ] = useState('');
   // Listas vazias = sem filtro. Dentro de cada tipo, basta casar um; entre tipos, todos.
   const [grupos, setGrupos] = useState<string[]>([]);
-  const [desigs, setDesigs] = useState<FiltroDesig[]>([]);
-  const [sits, setSits] = useState<Situacao[]>([]);
+  const [desigs, setDesigs] = useState<FiltroDesig[]>(filtroInicial?.designacoes ?? []);
+  const [sits, setSits] = useState<Situacao[]>(filtroInicial?.situacoes ?? []);
   const [sexos, setSexos] = useState<('M' | 'F')[]>([]);
   const [arquivados, setArquivados] = useState(false);
   const [novo, setNovo] = useState(false);

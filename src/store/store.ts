@@ -1,19 +1,25 @@
 import { create } from 'zustand';
 import { cifrar, decifrar, decifrarComChave, derivarChave, type Chave } from '../crypto/crypto';
 import { chaveLembrada, esquecerChave, lembrarChave } from '../crypto/chaveLembrada';
-import { auxiliarNoMes, dbVazio, type Db, type RelatorioMes } from '../domain/types';
-import { relatorioVazio } from '../domain/serviceYear';
+import { auxiliarNoMes, dbVazio, type Db, type Privilegio, type RelatorioMes } from '../domain/types';
+import { relatorioVazio, type Situacao } from '../domain/serviceYear';
 import { ConflitoError, type Armazenamento } from '../storage/storage';
 
 export type Pagina =
   | { nome: 'painel' }
-  | { nome: 'publicadores' }
+  | { nome: 'publicadores'; filtro?: FiltroPublicadores }
   | { nome: 'publicador'; id: string }
   | { nome: 'grupos' }
   | { nome: 'mapa' }
   | { nome: 'relatorios'; mes?: string }
   | { nome: 'importar' }
   | { nome: 'config' };
+
+/** Filtros com que a lista de publicadores abre (ex.: ao clicar num indicador do painel). */
+export interface FiltroPublicadores {
+  situacoes?: Situacao[];
+  designacoes?: (Privilegio | 'pap' | 'nb')[];
+}
 
 export interface Toast {
   id: number;

@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Archive, ArchiveRestore, ArrowLeft, Download, Loader2, Pencil, Trash2, UserCheck, UserX, X } from 'lucide-react';
 import { definirAuxiliar, definirRelatorio, excluirRelatorio, mesesComDados, useStore } from '../store/store';
 import {
-  anosServicoComDados, formatarData, MESES_ANO_SERVICO, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico,
+  anosServicoComDados, creditosAprovados, formatarData, LIMITE_HORAS_COM_CREDITO, MESES_ANO_SERVICO, mesesDoAnoServico,
+  rotuloAnoServico, situacao, totaisAnoServico, totalComCreditos,
 } from '../domain/serviceYear';
 import { auxiliarNoMes, PRIVILEGIOS, type RelatorioMes } from '../domain/types';
 import { Avatar, BadgeSituacao, Confirmar, Toggle } from '../components/ui';
@@ -65,7 +66,9 @@ export function PublicadorDetalhe({ id }: { id: string }) {
     }
   }
 
-  const numInput = (mes: string, campo: 'estudos' | 'horas', v: number | null | undefined) => (
+  const pioneiro = p.privilegios.includes('pioneiro_regular');
+
+  const numInput = (mes: string, campo: 'estudos' | 'horas' | 'creditos', v: number | null | undefined) => (
     <input
       type="number"
       min={0}
@@ -183,6 +186,13 @@ export function PublicadorDetalhe({ id }: { id: string }) {
                 <th className="th w-24 text-center">Pion. aux.</th>
                 <th className="th w-24 text-center">Horas</th>
                 <th className="th">Observações</th>
+                {pioneiro && (
+                  <>
+                    <th className="th w-24 text-center">Créditos</th>
+                    <th className="th w-24 text-center" title={`Só o que cabe até ${LIMITE_HORAS_COM_CREDITO} h somando com as horas`}>Aprovados</th>
+                    <th className="th w-24 text-center">Total c/ créditos</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -215,6 +225,13 @@ export function PublicadorDetalhe({ id }: { id: string }) {
                     <td>
                       <input className="w-full bg-transparent px-2 py-1.5 outline-none focus:bg-indigo-50 dark:focus:bg-indigo-500/10" value={r?.obs ?? ''} onChange={(e) => editarMes(mes, 'obs', e.target.value)} />
                     </td>
+                    {pioneiro && (
+                      <>
+                        <td>{numInput(mes, 'creditos', r?.creditos)}</td>
+                        <td className="td text-center tabular-nums text-slate-500">{r?.creditos ? creditosAprovados(r) : ''}</td>
+                        <td className="td text-center font-medium tabular-nums">{r?.creditos ? totalComCreditos(r) : ''}</td>
+                      </>
+                    )}
                   </tr>
                 );
               })}
@@ -227,8 +244,16 @@ export function PublicadorDetalhe({ id }: { id: string }) {
                 <td className="td" />
                 <td className="td text-center tabular-nums">{tot.horas || ''}</td>
                 <td className="td" />
+                {pioneiro && (
+                  <>
+                    <td className="td text-center tabular-nums">{tot.creditos || ''}</td>
+                    <td className="td text-center tabular-nums">{tot.aprovados || ''}</td>
+                    <td className="td text-center tabular-nums">{tot.totalComCreditos || ''}</td>
+                  </>
+                )}
               </tr>
             </tfoot>
+
           </table>
         </div>
       </div>

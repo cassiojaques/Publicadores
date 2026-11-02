@@ -1,12 +1,12 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   BookOpen,
-  CalendarHeart,
   CalendarRange,
   Clock,
   Droplets,
   FileInput,
+  Flag,
   FileSpreadsheet,
   PieChart,
   Plus,
@@ -16,12 +16,15 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { mesesComDados, useStore } from '../store/store';
-import { anoServicoDe, mesesDoAnoServico, mesRelatorioAtual, nomeMes, situacao, ultimosMeses } from '../domain/serviceYear';
+import type { Publicador } from '../domain/types';
+import { anoServicoDe, MESES_ANO_SERVICO, mesesDoAnoServico, mesRelatorioAtual, nomeMes, situacao, totalComCreditos, ultimosMeses } from '../domain/serviceYear';
 import { statusDoMes } from '../domain/relatorios';
-import { Avatar, BadgeSituacao } from '../components/ui';
+import { Avatar, BadgeSituacao, Toggle } from '../components/ui';
 
 const MES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const mesCurto = (chave: string) => MES_CURTO[Number(chave.slice(5, 7)) - 1];
+const META_ANO_PIONEIRO = 600;
+const META_MES_PIONEIRO = 50;
 const pct = (parte: number, total: number) => (total ? Math.round((parte / total) * 100) : 0);
 
 function Indicador({ icone, rotulo, valor, detalhe, cor }: { icone: ReactNode; rotulo: string; valor: ReactNode; detalhe?: string; cor: string }) {
@@ -71,6 +74,132 @@ function Linha({ icone, rotulo, valor }: { icone?: ReactNode; rotulo: string; va
     <div className="flex justify-between gap-2">
       <dt className="flex items-center gap-2 text-slate-500">{icone} {rotulo}</dt>
       <dd className="font-semibold tabular-nums">{valor}</dd>
+    </div>
+  );
+}
+
+type HorasPioneiro = { p: Publicador; horas: number; comCredito: number };
+
+/**
+ * Horas de cada pioneiro regular no ano de serviço contra a meta de 600; o risco marca onde já deveria estar.
+ * Com crédito, vale o total do mês (horas + créditos aprovados).
+ */
+function MetaPioneiros({ anoServico, decorridos, lista: pioneiros }: { anoServico: number; decorridos: number; lista: HorasPioneiro[] }) {
+  const { navegar } = useStore();
+  const [comCredito, setComCredito] = useState(true);
+  const lista = useMemo(() => {
+    const esperado = META_MES_PIONEIRO * decorridos;
+    const restantes = 12 - decorridos;
+    return pioneiros
+      .map(({ p, ...h }) => {
+        const horas = comCredito ? h.comCredito : h.horas;
+        return { p, horas, esperado, diff: horas - esperado, porMes: restantes ? Math.max(0, Math.ceil((META_ANO_PIONEIRO - horas) / restantes)) : 0 };
+      })
+      .sort((a, b) => a.diff - b.diff || a.p.nome.localeCompare(b.p.nome, 'pt-BR'));
+  }, [pioneiros, decorridos, comCredito]);
+  const noRitmo = lista.filter((x) => x.diff >= 0).length;
+  const horas = lista.reduce((s, x) => s + x.horas, 0);
+  const esperado = META_MES_PIONEIRO * decorridos * lista.length;
+  const marca = `${(decorridos / 12) * 100}%`;
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex flex-wrap items-end justify-between gap-4 bg-gradient-to-r from-emerald-50 to-teal-50 p-5 dark:from-emerald-500/10 dark:to-teal-500/5">
+        <div>
+          <h2 className="flex items-center gap-2 font-semibold">
+            <span className="text-emerald-600">
+              <Flag size={18} />
+            </span>
+            Pioneiros regulares · meta de {META_ANO_PIONEIRO} horas
+          </h2>
+          <p className="text-sm text-slate-500">
+            Ano de serviço {anoServico} · {decorridos} de 12 meses · cada um já deveria ter {META_MES_PIONEIRO * decorridos} h
+          </p>
+          <label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-sm" title="Com crédito: horas + créditos aprovados de cada mês">
+            <Toggle cor="emerald" checked={comCredito} onChange={(e) => setComCredito(e.target.checked)} />
+            {comCredito ? 'Com crédito de horas' : 'Sem crédito de horas'}
+          </label>
+        </div>
+        <div className="flex gap-6 text-right">
+          <div>
+            <p className="text-2xl font-semibold tabular-nums">
+              {noRitmo}
+              <span className="text-base font-normal text-slate-400"> / {lista.length}</span>
+            </p>
+            <p className="text-xs text-slate-500">no ritmo</p>
+          </div>
+          <div>
+            <p className={`text-2xl font-semibold tabular-nums ${horas >= esperado ? 'text-emerald-600' : 'text-amber-600'}`}>{pct(horas, esperado)}%</p>
+            <p className="text-xs text-slate-500">
+              {horas.toLocaleString('pt-BR')} de {esperado.toLocaleString('pt-BR')} h
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3 p-5">
+        {/* Régua dos meses: o mês destacado é onde a meta está agora. */}
+        <div className="flex items-center gap-3 text-[10px] text-slate-400">
+          <span className="w-32 shrink-0 sm:w-44" />
+          <div className="relative h-3 flex-1">
+            {MESES_ANO_SERVICO.map((m, i) => (
+              <span
+                key={m}
+                className={`absolute -translate-x-full pr-0.5 ${i + 1 === decorridos ? 'font-semibold text-slate-700 dark:text-slate-200' : 'hidden sm:inline'}`}
+                style={{ left: `${((i + 1) / 12) * 100}%` }}
+              >
+                {m.slice(0, 3).toLowerCase()}
+              </span>
+            ))}
+          </div>
+          <span className="w-24 shrink-0 sm:w-28" />
+        </div>
+
+        {lista.map((x) => {
+          const atrasado = x.diff < 0;
+          const cor = !atrasado ? 'bg-emerald-500' : x.horas >= x.esperado * 0.9 ? 'bg-amber-400' : 'bg-rose-400';
+          return (
+            <button
+              key={x.p.id}
+              className="group flex w-full items-center gap-3 text-left text-sm"
+              title={`${x.p.nome}: ${x.horas} h de ${x.esperado} h esperadas até agora${x.porMes && x.horas < META_ANO_PIONEIRO ? ` · precisa de ${x.porMes} h/mês para fechar ${META_ANO_PIONEIRO}` : ''}`}
+              onClick={() => navegar({ nome: 'publicador', id: x.p.id })}
+            >
+              <span className="w-32 shrink-0 truncate group-hover:underline sm:w-44">{x.p.nome}</span>
+              <div className="relative h-4 flex-1 rounded-full bg-slate-100 dark:bg-slate-800">
+                {/* Divisões de 50 h (um mês de meta). */}
+                {Array.from({ length: 11 }, (_, i) => (
+                  <span key={i} className="absolute inset-y-1 w-px bg-slate-300/70 dark:bg-slate-600/60" style={{ left: `${((i + 1) / 12) * 100}%` }} />
+                ))}
+                <div className={`relative h-full rounded-full ${cor}`} style={{ width: `${Math.min(100, (x.horas / META_ANO_PIONEIRO) * 100)}%` }} />
+                <span className="absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded-full bg-slate-800 dark:bg-white" style={{ left: marca }} />
+              </div>
+              <span className="w-24 shrink-0 text-right tabular-nums sm:w-28">
+                <span className="font-semibold">{x.horas}</span>
+                <span className="text-slate-400"> h </span>
+                <span className={`text-xs ${atrasado ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  {x.diff > 0 ? '+' : x.diff < 0 ? '−' : ''}
+                  {Math.abs(x.diff)}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+
+        <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2 text-xs text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <span className="h-3 w-0.5 rounded-full bg-slate-800 dark:bg-white" /> onde deveria estar ({META_MES_PIONEIRO} h por mês)
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-3 rounded-full bg-emerald-500" /> no ritmo
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-3 rounded-full bg-amber-400" /> até 10% abaixo
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-3 rounded-full bg-rose-400" /> mais atrasado
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -159,20 +288,32 @@ export function Painel() {
     return { meses: ks.length, horas, relatorios, auxiliares, mediaEstudos: ks.length ? Math.round(estudos / ks.length) : 0 };
   }, [ativos, meses, anoServico]);
 
-  // Aniversários de nascimento e de batismo no mês corrente.
+  // Pioneiros regulares: meta de 600 horas no ano de serviço (50 por mês).
+  const pioneiros = useMemo(() => {
+    if (!ultimoMes) return null;
+    const ks = mesesDoAnoServico(anoServico);
+    const decorridos = ks.indexOf(ultimoMes) + 1;
+    const lista = ativos
+      .filter((p) => p.privilegios.includes('pioneiro_regular'))
+      .map((p) => {
+        const rs = ks.slice(0, decorridos).map((k) => p.relatorios[k]);
+        return { p, horas: rs.reduce((s, r) => s + (r?.horas ?? 0), 0), comCredito: rs.reduce((s, r) => s + totalComCreditos(r), 0) };
+      });
+    return { decorridos, lista };
+  }, [ativos, ultimoMes, anoServico]);
+
+  // Aniversários de batismo no mês corrente.
   const hoje = new Date();
   const anoHoje = hoje.getFullYear();
   const mesHoje = String(hoje.getMonth() + 1).padStart(2, '0');
-  const aniversarios = useMemo(() => {
-    const lista: { p: (typeof ativos)[number]; dia: number; anos: number; tipo: 'nascimento' | 'batismo' }[] = [];
-    for (const p of ativos)
-      for (const tipo of ['nascimento', 'batismo'] as const) {
-        const d = p[tipo];
-        if (!d || d.slice(5, 7) !== mesHoje) continue;
-        lista.push({ p, tipo, dia: Number(d.slice(8, 10)), anos: anoHoje - Number(d.slice(0, 4)) });
-      }
-    return lista.sort((a, b) => a.dia - b.dia || a.p.nome.localeCompare(b.p.nome, 'pt-BR'));
-  }, [ativos, mesHoje, anoHoje]);
+  const aniversarios = useMemo(
+    () =>
+      ativos
+        .filter((p) => p.batismo && p.batismo.slice(5, 7) === mesHoje)
+        .map((p) => ({ p, dia: Number(p.batismo.slice(8, 10)), anos: anoHoje - Number(p.batismo.slice(0, 4)) }))
+        .sort((a, b) => a.dia - b.dia || a.p.nome.localeCompare(b.p.nome, 'pt-BR')),
+    [ativos, mesHoje, anoHoje],
+  );
 
   if (db.publicadores.length === 0)
     return (
@@ -213,6 +354,8 @@ export function Painel() {
         <Indicador icone={<UserCheck size={18} />} cor="bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15" rotulo="Pioneiros" valor={stats.pioneiros} detalhe={ultimoMes ? `+ ${stats.auxiliares} auxiliares em ${mesCurto(ultimoMes)}` : undefined} />
         <Indicador icone={<AlertTriangle size={18} />} cor="bg-amber-100 text-amber-600 dark:bg-amber-500/15" rotulo="Inativos" valor={stats.atencao.length} detalhe={`${pct(stats.atencao.length, ativos.length)}% dos publicadores`} />
       </div>
+
+      {pioneiros && pioneiros.lista.length > 0 && <MetaPioneiros anoServico={anoServico} {...pioneiros} />}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Cartao
@@ -299,19 +442,18 @@ export function Painel() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Cartao titulo="Aniversários do mês" icone={<CalendarHeart size={18} />} subtitulo={nomeMes(`${anoHoje}-${mesHoje}`).split(' ')[0]}>
+        <Cartao titulo="Aniversários de batismo" icone={<Droplets size={18} />} subtitulo={nomeMes(`${anoHoje}-${mesHoje}`).split(' ')[0]}>
           {aniversarios.length === 0 ? (
-            <p className="text-sm text-slate-500">Nenhum aniversário de nascimento ou batismo neste mês.</p>
+            <p className="text-sm text-slate-500">Nenhum aniversário de batismo neste mês.</p>
           ) : (
             <ul className="max-h-72 space-y-1 overflow-y-auto">
               {aniversarios.map((a) => (
-                <li key={`${a.p.id}-${a.tipo}`}>
+                <li key={a.p.id}>
                   <button className="flex w-full items-center gap-3 rounded-lg px-1 py-1.5 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800/60" onClick={() => navegar({ nome: 'publicador', id: a.p.id })}>
-                    <span className="w-7 shrink-0 text-center font-semibold tabular-nums text-indigo-600 dark:text-indigo-400">{a.dia}</span>
+                    <span className="w-7 shrink-0 text-center font-semibold tabular-nums text-sky-600 dark:text-sky-400">{a.dia}</span>
                     <span className="flex-1 truncate">{a.p.nome}</span>
-                    <span className="flex shrink-0 items-center gap-1 text-xs text-slate-500">
-                      {a.tipo === 'batismo' ? <Droplets size={13} className="text-sky-500" /> : <CalendarHeart size={13} className="text-rose-500" />}
-                      {a.tipo === 'batismo' ? `${a.anos} ${a.anos === 1 ? 'ano' : 'anos'} de batismo` : `${a.anos} anos`}
+                    <span className="shrink-0 text-xs text-slate-500">
+                      {a.anos} {a.anos === 1 ? 'ano' : 'anos'}
                     </span>
                   </button>
                 </li>

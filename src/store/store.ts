@@ -10,6 +10,7 @@ export type Pagina =
   | { nome: 'publicadores' }
   | { nome: 'publicador'; id: string }
   | { nome: 'grupos' }
+  | { nome: 'mapa' }
   | { nome: 'relatorios'; mes?: string }
   | { nome: 'importar' }
   | { nome: 'config' };
@@ -63,6 +64,7 @@ function normalizar(db: Db): Db {
       inativo: p.inativo ?? false,
       auxiliarPermanente: p.auxiliarPermanente ?? false,
       auxiliarMeses: p.auxiliarMeses ?? [],
+      local: p.local ?? null,
     })),
   };
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { cifrar, decifrar, derivarChave, SenhaIncorretaError } from '../src/crypto/crypto';
-import { anoServicoDe, interpretarData, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico } from '../src/domain/serviceYear';
+import { anoServicoDe, creditosAprovados, interpretarData, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico, totalComCreditos } from '../src/domain/serviceYear';
 import { dbVazio, novoPublicador } from '../src/domain/types';
 import { aplicar, analisarJson, comMes, lerColadoRelatorio, mesSugerido, normalizarMes, prever, relataHoras } from '../src/import/relatorioCampo';
 import { definirAuxiliar, definirRelatorio, excluirMes, excluirRelatorio, mesesComDados, moverPublicador } from '../src/store/store';
@@ -10,6 +10,7 @@ import { statusDoMes, textoFaltantes, totaisDoMes } from '../src/domain/relatori
 import { gerarS21 } from '../src/pdf/s21';
 import { unzipSync } from 'fflate';
 import { gerarPdfGrupos } from '../src/pdf/grupos';
+import { consultaEndereco, localAtual, precisaLocalizar } from '../src/geo/geocodificar';
 import { lerLinhas, preverPlanilha, aplicarPlanilha, interpretarGrupo } from '../src/import/planilhaPublicadores';
 
 describe('criptografia', () => {
@@ -33,11 +34,24 @@ describe('ano de serviço', () => {
     expect(mesesDoAnoServico(2026)[0]).toBe('2025-09');
     expect(mesesDoAnoServico(2026)[11]).toBe('2026-08');
   });
+  it('aproveita créditos só até 55 h somando com as horas', () => {
+    expect(creditosAprovados({ horas: 60, creditos: 10 })).toBe(0);
+    expect(totalComCreditos({ horas: 60, creditos: 10 })).toBe(60);
+    expect(creditosAprovados({ horas: 40, creditos: 25 })).toBe(15);
+    expect(totalComCreditos({ horas: 40, creditos: 25 })).toBe(55);
+    expect(creditosAprovados({ horas: 30, creditos: 10 })).toBe(10);
+    expect(creditosAprovados({ horas: null, creditos: 70 })).toBe(55);
+    expect(creditosAprovados({ horas: 50 })).toBe(0);
+    const p = novoPublicador({ nome: 'PR', privilegios: ['pioneiro_regular'] });
+    p.relatorios['2025-09'] = { participou: true, estudos: null, auxiliar: false, horas: 60, creditos: 10, obs: '' };
+    p.relatorios['2025-10'] = { participou: true, estudos: null, auxiliar: false, horas: 40, creditos: 25, obs: '' };
+    expect(totaisAnoServico(p, 2026)).toMatchObject({ horas: 100, creditos: 35, aprovados: 15, totalComCreditos: 115 });
+  });
   it('soma totais e calcula situação', () => {
     const p = novoPublicador({ nome: 'A' });
     p.relatorios['2025-09'] = { participou: true, estudos: 1, auxiliar: false, horas: 50, obs: '' };
     p.relatorios['2025-10'] = { participou: true, estudos: 2, auxiliar: false, horas: 40, obs: '' };
-    expect(totaisAnoServico(p, 2026)).toEqual({ horas: 90, mesesParticipou: 2, estudos: 3 });
+    expect(totaisAnoServico(p, 2026)).toEqual({ horas: 90, mesesParticipou: 2, estudos: 3, creditos: 0, aprovados: 0, totalComCreditos: 90 });
     const meses = new Set(['2025-09', '2025-10', '2025-11']);
     expect(situacao(p, meses, '2025-11')).toBe('ativo');
     expect(situacao(novoPublicador({ nome: 'B' }), meses, '2025-11')).toBe('ativo'); // sem 6 meses de dados
@@ -296,5 +310,24 @@ describe('relatório colado da planilha', () => {
     aplicar(db, previa, 'colado', false);
     expect(beto.relatorios['2026-10']).toMatchObject({ horas: 50, auxiliar: true });
     expect(beto.auxiliarMeses).toEqual(['2026-10']);
+  });
+});
+
+describe('mapa', () => {
+  it('completa o endereço com a cidade só quando falta', () => {
+    expect(consultaEndereco(' Rua A,  10 ', 'Campinas - SP')).toBe('Rua A, 10, Campinas - SP');
+    expect(consultaEndereco('Rua A, 10, Campinas', 'Campinas - SP')).toBe('Rua A, 10, Campinas');
+    expect(consultaEndereco('Rua A, 10', '')).toBe('Rua A, 10');
+  });
+  it('pede para localizar de novo quando o endereço muda', () => {
+    const p = novoPublicador({ endereco: 'Rua A, 10' });
+    expect(precisaLocalizar(p)).toBe(true);
+    p.local = { lat: 1, lng: 2, endereco: 'Rua A, 10' };
+    expect(precisaLocalizar(p)).toBe(false);
+    expect(localAtual(p)).not.toBeNull();
+    p.endereco = 'Rua B, 20';
+    expect(precisaLocalizar(p)).toBe(true);
+    expect(localAtual(p)).toBeNull();
+    expect(precisaLocalizar(novoPublicador())).toBe(false);
   });
 });

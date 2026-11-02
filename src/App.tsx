@@ -8,6 +8,7 @@ import { Painel } from './pages/Painel';
 import { Publicadores } from './pages/Publicadores';
 import { PublicadorDetalhe } from './pages/PublicadorDetalhe';
 import { Grupos } from './pages/Grupos';
+import { Mapa } from './pages/Mapa';
 import { Relatorios } from './pages/Relatorios';
 import { Importar } from './pages/Importar';
 import { Config, minutosBloqueio } from './pages/Config';
@@ -68,6 +69,7 @@ export function App() {
       {pagina.nome === 'publicadores' && <Publicadores />}
       {pagina.nome === 'publicador' && <PublicadorDetalhe key={pagina.id} id={pagina.id} />}
       {pagina.nome === 'grupos' && <Grupos />}
+      {pagina.nome === 'mapa' && <Mapa />}
       {pagina.nome === 'relatorios' && <Relatorios key={pagina.mes ?? ''} mesInicial={pagina.mes} />}
       {pagina.nome === 'importar' && <Importar />}
       {pagina.nome === 'config' && <Config />}

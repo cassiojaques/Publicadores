@@ -52,3 +52,11 @@
     @apply px-3 py-2;
   }
 }
+
+/* Mapa no tema escuro: inverte as cores dos blocos do OpenStreetMap. */
+.dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+}
+.leaflet-container {
+  font: inherit;
+}

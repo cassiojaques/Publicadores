@@ -47,6 +47,7 @@ export function Modal({
 const CORES_TOGGLE = {
   indigo: 'checked:bg-indigo-600 focus-visible:outline-indigo-500',
   rose: 'checked:bg-rose-600 focus-visible:outline-rose-500',
+  emerald: 'checked:bg-emerald-600 focus-visible:outline-emerald-500',
 };
 
 /** Interruptor liga/desliga. Funciona como um checkbox (mesmas props), só que com cara de toggle. */

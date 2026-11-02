@@ -21,6 +21,8 @@ export interface RelatorioMes {
   estudos: number | null;
   auxiliar: boolean;
   horas: number | null;
+  /** Créditos de horas (só pioneiro regular). Ausente em relatórios antigos. */
+  creditos?: number | null;
   obs: string;
 }
 
@@ -44,9 +46,19 @@ export interface Publicador {
   auxiliarPermanente: boolean;
   /** Meses ("AAAA-MM") em que foi designado pioneiro auxiliar, mesmo antes de relatar. */
   auxiliarMeses: string[];
+  /** Ponto no mapa. `endereco` é o texto que foi localizado: se o endereço mudar, precisa localizar de novo. */
+  local: Localizacao | null;
   /** Mudou-se, faleceu etc. Não aparece nas listas padrão. */
   arquivado: boolean;
   relatorios: Record<string, RelatorioMes>;
+}
+
+export interface Localizacao {
+  lat: number;
+  lng: number;
+  endereco: string;
+  /** Ajustado à mão no mapa. */
+  manual?: boolean;
 }
 
 export interface Grupo {
@@ -65,14 +77,14 @@ export interface Importacao {
 
 export interface Db {
   versao: 1;
-  congregacao: { nome: string };
+  congregacao: { nome: string; /** Cidade/UF usada para completar os endereços ao localizar no mapa. */ cidade: string };
   grupos: Grupo[];
   publicadores: Publicador[];
   importacoes: Importacao[];
 }
 
 export function dbVazio(nomeCongregacao = ''): Db {
-  return { versao: 1, congregacao: { nome: nomeCongregacao }, grupos: [], publicadores: [], importacoes: [] };
+  return { versao: 1, congregacao: { nome: nomeCongregacao, cidade: '' }, grupos: [], publicadores: [], importacoes: [] };
 }
 
 /** Designado pioneiro auxiliar no mês (permanente ou só naquele mês). Não olha o relatório. */
@@ -101,6 +113,7 @@ export function novoPublicador(parcial: Partial<Publicador> = {}): Publicador {
     inativo: false,
     auxiliarPermanente: false,
     auxiliarMeses: [],
+    local: null,
     arquivado: false,
     relatorios: {},
     ...parcial,

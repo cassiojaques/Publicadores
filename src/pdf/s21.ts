@@ -1,6 +1,6 @@
 import { PDFArray, PDFDict, PDFDocument, PDFName, StandardFonts } from 'pdf-lib';
 import modeloUrl from '../assets/S-21_T.pdf?url';
-import { mesesDoAnoServico, totaisAnoServico, formatarData } from '../domain/serviceYear';
+import { creditosAprovados, mesesDoAnoServico, totaisAnoServico, totalComCreditos, formatarData } from '../domain/serviceYear';
 import type { Privilegio, Publicador } from '../domain/types';
 
 /**
@@ -86,6 +86,12 @@ export async function gerarS21(
   for (const [priv, campo] of Object.entries(CAMPO_PRIVILEGIO)) marcar(campo, p.privilegios.includes(priv as Privilegio));
   texto(CAMPO.anoServico, String(anoServico));
 
+  // O modelo oficial não tem colunas de crédito: para pioneiro regular vão nas observações.
+  const pioneiro = p.privilegios.includes('pioneiro_regular');
+  const credito = (creditos: number, aprovados: number, total: number) =>
+    pioneiro && creditos ? `Créd. ${creditos} · aprov. ${aprovados} · total ${total}` : '';
+  const juntar = (...partes: string[]) => partes.filter(Boolean).join(' — ');
+
   mesesDoAnoServico(anoServico).forEach((mes, i) => {
     const l = 20 + i;
     const r = p.relatorios[mes];
@@ -93,11 +99,11 @@ export async function gerarS21(
     texto(CAMPO.estudos(l), num(r?.estudos));
     marcar(CAMPO.auxiliar(l), !!r?.auxiliar);
     texto(CAMPO.horas(l), num(r?.horas));
-    texto(CAMPO.obs(l), r?.obs ?? '');
+    texto(CAMPO.obs(l), juntar(credito(r?.creditos ?? 0, creditosAprovados(r), totalComCreditos(r)), r?.obs ?? ''));
   });
   const tot = totaisAnoServico(p, anoServico);
   texto(CAMPO.horas(LINHA_TOTAL), num(tot.horas));
-  texto(CAMPO.obs(LINHA_TOTAL), '');
+  texto(CAMPO.obs(LINHA_TOTAL), credito(tot.creditos, tot.aprovados, tot.totalComCreditos));
 
   form.updateFieldAppearances(await doc.embedFont(StandardFonts.Helvetica));
   if (opcoes.achatar) form.flatten();

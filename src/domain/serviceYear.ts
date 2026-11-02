@@ -66,18 +66,35 @@ export function anosServicoComDados(p: Publicador): number[] {
   return [...anos].sort((a, b) => b - a);
 }
 
+/** Horas + créditos aproveitados não passam disso no mês. */
+export const LIMITE_HORAS_COM_CREDITO = 55;
+
+/** Créditos aproveitados: só o que cabe até completar 55 h com as horas do mês. */
+export function creditosAprovados(r: Pick<RelatorioMes, 'horas' | 'creditos'> | undefined): number {
+  const creditos = r?.creditos ?? 0;
+  return Math.max(0, Math.min(creditos, LIMITE_HORAS_COM_CREDITO - (r?.horas ?? 0)));
+}
+
+export function totalComCreditos(r: Pick<RelatorioMes, 'horas' | 'creditos'> | undefined): number {
+  return (r?.horas ?? 0) + creditosAprovados(r);
+}
+
 export function totaisAnoServico(p: Publicador, anoServico: number) {
   let horas = 0;
   let mesesParticipou = 0;
   let estudos = 0;
+  let creditos = 0;
+  let aprovados = 0;
   for (const k of mesesDoAnoServico(anoServico)) {
     const r = p.relatorios[k];
     if (!r) continue;
     horas += r.horas ?? 0;
     estudos += r.estudos ?? 0;
+    creditos += r.creditos ?? 0;
+    aprovados += creditosAprovados(r);
     if (r.participou) mesesParticipou++;
   }
-  return { horas, mesesParticipou, estudos };
+  return { horas, mesesParticipou, estudos, creditos, aprovados, totalComCreditos: horas + aprovados };
 }
 
 export type Situacao = 'ativo' | 'inativo';

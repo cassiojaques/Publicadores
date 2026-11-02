@@ -37,6 +37,7 @@ const ALIASES = {
   estudos: ['estudos', 'estudosBiblicos', 'estudos_biblicos', 'bibleStudies', 'studies'],
   auxiliar: ['auxiliar', 'pioneiroAuxiliar', 'pioneiro_auxiliar', 'auxiliaryPioneer'],
   horas: ['horas', 'hours'],
+  creditos: ['creditos', 'créditos', 'credito', 'crédito', 'creditosHoras', 'credits'],
   obs: ['obs', 'observacoes', 'observações', 'observacao', 'observação', 'comentarios', 'remarks', 'notes'],
   enviado: ['enviado em', 'enviadoEm', 'enviado', 'data de envio', 'carimbo de data/hora', 'timestamp'],
 };
@@ -107,6 +108,7 @@ function deObjetos(lista: unknown[], mesGeral: string | null, ignorarSemNome: bo
     }
     const horas = numero(pegar(o, ALIASES.horas));
     const estudos = numero(pegar(o, ALIASES.estudos));
+    const creditos = numero(pegar(o, ALIASES.creditos));
     const p = pegar(o, ALIASES.participou);
     const id = pegar(o, ALIASES.id);
     out.push({
@@ -120,6 +122,7 @@ function deObjetos(lista: unknown[], mesGeral: string | null, ignorarSemNome: bo
         estudos,
         auxiliar: bool(pegar(o, ALIASES.auxiliar)),
         horas,
+        ...(creditos !== null && { creditos }),
         obs: String(pegar(o, ALIASES.obs) ?? '').trim(),
       },
     });
@@ -262,7 +265,9 @@ export function aplicar(db: Db, previa: Previa, arquivo: string, criarNaoEncontr
     }
     if (!p) continue;
     if (reativaria(p, item.linha)) p.inativo = false;
-    p.relatorios[item.linha.mes] = item.linha.relatorio;
+    // Créditos costumam ser digitados no cartão: sem a coluna na importação, mantém os que já existiam.
+    const creditos = p.relatorios[item.linha.mes]?.creditos;
+    p.relatorios[item.linha.mes] = { ...(creditos != null && { creditos }), ...item.linha.relatorio };
     // Marcar/desmarcar PA na prévia também vale como designação do mês.
     if (!p.auxiliarPermanente) {
       const mes = item.linha.mes;

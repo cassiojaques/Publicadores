@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { cifrar, decifrar, derivarChave, SenhaIncorretaError } from '../src/crypto/crypto';
-import { anoServicoDe, creditosAprovados, interpretarData, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico, totalComCreditos } from '../src/domain/serviceYear';
+import { anoServicoDe, creditosAprovados, interpretarData, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico, totalComCreditos, ultimoMesFechado } from '../src/domain/serviceYear';
 import { dbVazio, novoPublicador } from '../src/domain/types';
 import { aplicar, analisarJson, comMes, lerColadoRelatorio, mesSugerido, normalizarMes, prever, relataHoras } from '../src/import/relatorioCampo';
 import { definirAuxiliar, definirRelatorio, excluirMes, excluirRelatorio, mesesComDados, moverPublicador } from '../src/store/store';
@@ -228,6 +228,18 @@ describe('ano de serviço e inativos', () => {
     expect(prev.itens[0].reativa).toBe(true);
     aplicar(db, prev, 'x.json', false);
     expect(p.inativo).toBe(false);
+  });
+  it('o mês ainda no prazo (até o dia 20) não conta como falta', () => {
+    expect(ultimoMesFechado(new Date(2026, 10, 2))).toBe('2026-09');
+    expect(ultimoMesFechado(new Date(2026, 10, 20))).toBe('2026-09');
+    expect(ultimoMesFechado(new Date(2026, 10, 21))).toBe('2026-10');
+    expect(ultimoMesFechado(new Date(2027, 0, 5))).toBe('2026-11');
+    // Relatou até abril; maio a setembro sem relatar. Outubro só conta depois de 20/11.
+    const meses = new Set(['2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10']);
+    const p = novoPublicador({ nome: 'Bruno' });
+    p.relatorios['2026-04'] = { participou: true, estudos: null, auxiliar: false, horas: null, obs: '' };
+    expect(situacao(p, meses, ultimoMesFechado(new Date(2026, 10, 2)))).toBe('ativo');
+    expect(situacao(p, meses, ultimoMesFechado(new Date(2026, 10, 21)))).toBe('inativo');
   });
 });
 

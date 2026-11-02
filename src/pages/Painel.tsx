@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { mesesComDados, useStore } from '../store/store';
 import type { Publicador } from '../domain/types';
-import { anoServicoDe, MESES_ANO_SERVICO, mesesDoAnoServico, mesRelatorioAtual, nomeMes, situacao, totalComCreditos } from '../domain/serviceYear';
+import { anoServicoDe, MESES_ANO_SERVICO, mesesDoAnoServico, mesRelatorioAtual, nomeMes, situacao, totalComCreditos, ultimoMesFechado } from '../domain/serviceYear';
 import { Avatar, BadgeSituacao, Toggle } from '../components/ui';
 
 const MES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -269,12 +269,12 @@ export function Painel() {
     return { decorridos, lista };
   }, [ativos, ultimoMes, mesEsperado, anoServico]);
 
-  // Meses seguidos sem participar, contados para trás a partir do último mês que já tem relatos
-  // (um mês recém-aberto, ainda sem ninguém relatado, não conta como falta).
+  // Meses seguidos sem participar, contados para trás a partir do último mês fechado que tem relatos
+  // (o mês ainda no prazo de entrega, até o dia 20, não conta como falta).
   // Quem já está inativo fica de fora: aparece no quadro de inativos.
   const semParticipar = useMemo(() => {
     const inativos = new Set(stats.atencao.map((x) => x.p.id));
-    const comRelatos = [...meses].filter((k) => k <= mesEsperado && ativos.some((p) => p.relatorios[k]?.participou)).sort().reverse();
+    const comRelatos = [...meses].filter((k) => k <= ultimoMesFechado() && ativos.some((p) => p.relatorios[k]?.participou)).sort().reverse();
     const lista = ativos
       .filter((p) => !inativos.has(p.id))
       .map((p) => {
@@ -284,7 +284,7 @@ export function Painel() {
       .filter((x) => x.meses >= MESES_SEM_PARTICIPAR)
       .sort((a, b) => b.meses - a.meses || a.p.nome.localeCompare(b.p.nome, 'pt-BR'));
     return { ate: comRelatos[0] ?? null, lista };
-  }, [ativos, meses, mesEsperado, stats.atencao]);
+  }, [ativos, meses, stats.atencao]);
 
   // Aniversários de batismo no mês corrente.
   const hoje = new Date();

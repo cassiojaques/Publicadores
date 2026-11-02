@@ -99,13 +99,25 @@ export function totaisAnoServico(p: Publicador, anoServico: number) {
   return { horas, mesesParticipou, estudos, creditos, aprovados, totalComCreditos: horas + aprovados };
 }
 
+/** Dia do mês seguinte até o qual o relatório do mês ainda pode ser entregue. */
+export const PRAZO_RELATORIO = 20;
+
+/**
+ * Último mês cujo prazo de entrega já passou. Até o dia 20 o mês anterior ainda está
+ * sendo relatado e não conta como falta (em 02/11 o último fechado é setembro; em 21/11, outubro).
+ */
+export function ultimoMesFechado(hoje = new Date()): string {
+  const d = new Date(hoje.getFullYear(), hoje.getMonth() - (hoje.getDate() > PRAZO_RELATORIO ? 1 : 2), 1);
+  return chaveMes(d.getFullYear(), d.getMonth() + 1);
+}
+
 export type Situacao = 'ativo' | 'inativo';
 
 /**
- * Inativo: marcado manualmente, ou não participou em nenhum dos últimos 6 meses
+ * Inativo: marcado manualmente, ou não participou em nenhum dos últimos 6 meses fechados
  * (considerando apenas meses que já têm relatórios na congregação). Os demais são ativos.
  */
-export function situacao(p: Publicador, mesesComDados: Set<string>, ate = mesRelatorioAtual()): Situacao {
+export function situacao(p: Publicador, mesesComDados: Set<string>, ate = ultimoMesFechado()): Situacao {
   if (p.inativo) return 'inativo';
   const janela = ultimosMeses(6, ate).filter((k) => mesesComDados.has(k));
   if (janela.length === 6 && !janela.some((k) => p.relatorios[k]?.participou)) return 'inativo';

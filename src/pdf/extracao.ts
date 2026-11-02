@@ -1,5 +1,5 @@
 import { mesesComDados } from '../store/store';
-import { mesesDoAnoServico, mesRelatorioAtual, situacao } from '../domain/serviceYear';
+import { mesesDoAnoServico, mesRelatorioAtual, situacao, ultimoMesFechado } from '../domain/serviceYear';
 import { statusDoMes, totaisDoMes } from '../domain/relatorios';
 import type { Db, Publicador } from '../domain/types';
 import { carregarModelo, gerarS21, gerarS21Totais } from './s21';
@@ -23,7 +23,7 @@ export const ehPioneiro = (p: Publicador) =>
  */
 export function caminhosDosCartoes(db: Db, hoje = new Date()): { p: Publicador; caminho: string }[] {
   const meses = mesesComDados(db);
-  const ate = mesRelatorioAtual(hoje);
+  const ate = ultimoMesFechado(hoje);
   const todos = db.publicadores.filter((p) => !p.arquivado);
   const inativos = todos.filter((p) => situacao(p, meses, ate) === 'inativo');
   const ativos = todos.filter((p) => !inativos.includes(p));

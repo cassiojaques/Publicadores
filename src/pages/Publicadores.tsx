@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Fuse from 'fuse.js';
 import { ChevronRight, ClipboardCopy, FileStack, FilterX, Plus, Search, Users } from 'lucide-react';
 import { mesesComDados, moverPublicador, useStore } from '../store/store';
@@ -59,15 +59,55 @@ function Pilula({ ativo, cor, titulo, onClick, children }: { ativo: boolean; cor
   );
 }
 
+type FiltroDesig = Privilegio | 'pap' | 'nb';
+const DESIGNACOES_FILTRO: { id: FiltroDesig; rotulo: string; titulo: string }[] = [
+  ...PRIVILEGIOS.map((x) => ({ id: x.id, rotulo: x.curto, titulo: x.label })),
+  { id: 'pap', rotulo: 'PAP', titulo: 'Pioneiro auxiliar permanente' },
+  { id: 'nb', rotulo: 'Não batizado', titulo: 'Publicador não batizado' },
+];
+
+/** Liga/desliga um valor num conjunto de filtros. */
+const alternar = <T,>(lista: T[], v: T) => (lista.includes(v) ? lista.filter((x) => x !== v) : [...lista, v]);
+
+/** Botão de pré-filtro: clica para incluir/excluir. Vários do mesmo tipo somam (um OU outro). */
+function Chip({ ativo, onClick, titulo, children }: { ativo: boolean; onClick: () => void; titulo?: string; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      title={titulo}
+      aria-pressed={ativo}
+      onClick={onClick}
+      className={`whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium transition ${
+        ativo
+          ? 'border-indigo-500 bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+          : 'border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function LinhaFiltro({ rotulo, children }: { rotulo: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-indigo-900/50 dark:text-slate-500">{rotulo}</span>
+      {children}
+    </div>
+  );
+}
+
 const selectCelula =
   'rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm outline-none hover:border-slate-300 focus:border-indigo-500 dark:hover:border-slate-700 dark:bg-transparent';
 
 export function Publicadores() {
   const { db, navegar, atualizar, toast } = useStore();
   const [q, setQ] = useState('');
-  const [grupo, setGrupo] = useState<string>('todos');
-  const [priv, setPriv] = useState<Privilegio | 'todos'>('todos');
-  const [sit, setSit] = useState<Situacao | 'todos'>('todos');
+  // Listas vazias = sem filtro. Dentro de cada tipo, basta casar um; entre tipos, todos.
+  const [grupos, setGrupos] = useState<string[]>([]);
+  const [desigs, setDesigs] = useState<FiltroDesig[]>([]);
+  const [sits, setSits] = useState<Situacao[]>([]);
+  const [sexos, setSexos] = useState<('M' | 'F')[]>([]);
   const [arquivados, setArquivados] = useState(false);
   const [novo, setNovo] = useState(false);
   const [gerarCartoes, setGerarCartoes] = useState(false);
@@ -84,16 +124,22 @@ export function Publicadores() {
 
   const lista = (q.trim() ? fuse.search(q.trim()).map((r) => r.item) : [...db.publicadores].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true })))
     .filter((p) => p.arquivado === arquivados)
-    .filter((p) => grupo === 'todos' || (grupo === 'sem' ? !p.grupoId : p.grupoId === grupo))
-    .filter((p) => priv === 'todos' || p.privilegios.includes(priv))
-    .filter((p) => sit === 'todos' || situacoes.get(p.id) === sit);
+    .filter((p) => !grupos.length || grupos.includes(p.grupoId ?? 'sem'))
+    .filter((p) => !sexos.length || sexos.includes(p.sexo))
+    .filter((p) => !sits.length || sits.includes(situacoes.get(p.id)!))
+    .filter(
+      (p) =>
+        !desigs.length ||
+        desigs.some((d) => (d === 'pap' ? p.auxiliarPermanente : d === 'nb' ? !p.batizado : p.privilegios.includes(d))),
+    );
 
-  const temFiltro = q !== '' || grupo !== 'todos' || priv !== 'todos' || sit !== 'todos' || arquivados;
+  const temFiltro = q !== '' || grupos.length > 0 || desigs.length > 0 || sits.length > 0 || sexos.length > 0 || arquivados;
   function limparFiltros() {
     setQ('');
-    setGrupo('todos');
-    setPriv('todos');
-    setSit('todos');
+    setGrupos([]);
+    setDesigs([]);
+    setSits([]);
+    setSexos([]);
     setArquivados(false);
   }
 
@@ -134,33 +180,12 @@ export function Publicadores() {
         </div>
       </div>
 
-      <div className="card flex flex-wrap items-center gap-2 p-2">
+      <div className="card space-y-2 p-2">
+        <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input className="input py-1.5 pl-9" placeholder="Filtrar por nome, telefone…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <select className="input w-auto py-1.5" value={grupo} onChange={(e) => setGrupo(e.target.value)}>
-          <option value="todos">Todos os grupos</option>
-          <option value="sem">Sem grupo</option>
-          {db.grupos.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.nome}
-            </option>
-          ))}
-        </select>
-        <select className="input w-auto py-1.5" value={priv} onChange={(e) => setPriv(e.target.value as Privilegio | 'todos')}>
-          <option value="todos">Todas as designações</option>
-          {PRIVILEGIOS.map((x) => (
-            <option key={x.id} value={x.id}>
-              {x.label}
-            </option>
-          ))}
-        </select>
-        <select className="input w-auto py-1.5" value={sit} onChange={(e) => setSit(e.target.value as Situacao | 'todos')}>
-          <option value="todos">Qualquer situação</option>
-          <option value="ativo">Ativos</option>
-          <option value="inativo">Inativos</option>
-        </select>
         <label className="flex items-center gap-2 px-2 text-sm text-slate-600 dark:text-slate-400">
           <input type="checkbox" className="accent-indigo-600" checked={arquivados} onChange={(e) => setArquivados(e.target.checked)} />
           Arquivados
@@ -168,6 +193,31 @@ export function Publicadores() {
         <button className="btn-ghost py-1.5" onClick={limparFiltros} disabled={!temFiltro} title="Volta todos os filtros ao padrão">
           <FilterX size={16} /> Limpar filtros
         </button>
+        </div>
+        <div className="space-y-1.5 border-t border-slate-100 px-1 pt-2 dark:border-slate-800">
+          <LinhaFiltro rotulo="Situação">
+            <Chip ativo={sits.includes('ativo')} onClick={() => setSits((x) => alternar(x, 'ativo'))}>Ativos</Chip>
+            <Chip ativo={sits.includes('inativo')} onClick={() => setSits((x) => alternar(x, 'inativo'))}>Inativos</Chip>
+            <span className="mx-1 h-4 w-px bg-slate-200 dark:bg-slate-700" />
+            <Chip ativo={sexos.includes('M')} onClick={() => setSexos((x) => alternar(x, 'M'))}>Irmãos</Chip>
+            <Chip ativo={sexos.includes('F')} onClick={() => setSexos((x) => alternar(x, 'F'))}>Irmãs</Chip>
+          </LinhaFiltro>
+          <LinhaFiltro rotulo="Designações">
+            {DESIGNACOES_FILTRO.map((d) => (
+              <Chip key={d.id} titulo={d.titulo} ativo={desigs.includes(d.id)} onClick={() => setDesigs((x) => alternar(x, d.id))}>
+                {d.rotulo}
+              </Chip>
+            ))}
+          </LinhaFiltro>
+          <LinhaFiltro rotulo="Grupos">
+            {db.grupos.map((g) => (
+              <Chip key={g.id} ativo={grupos.includes(g.id)} onClick={() => setGrupos((x) => alternar(x, g.id))}>
+                {g.nome}
+              </Chip>
+            ))}
+            <Chip ativo={grupos.includes('sem')} onClick={() => setGrupos((x) => alternar(x, 'sem'))}>Sem grupo</Chip>
+          </LinhaFiltro>
+        </div>
       </div>
 
       <div className="card overflow-hidden">
@@ -335,7 +385,7 @@ export function Publicadores() {
       <GerarCartoes aberto={gerarCartoes} onFechar={() => setGerarCartoes(false)} exibidos={lista} />
       <FormPublicador
         aberto={novo}
-        grupoInicial={grupo !== 'todos' && grupo !== 'sem' ? grupo : null}
+        grupoInicial={grupos.length === 1 && grupos[0] !== 'sem' ? grupos[0] : null}
         onFechar={() => setNovo(false)}
       />
     </div>

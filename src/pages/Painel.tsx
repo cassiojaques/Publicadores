@@ -154,6 +154,7 @@ function MetaPioneiros({ anoServico, decorridos, lista: pioneiros }: { anoServic
           <span className="w-24 shrink-0 sm:w-28" />
         </div>
 
+        {lista.length === 0 && <p className="py-2 text-sm text-slate-500">Nenhum publicador marcado como pioneiro regular.</p>}
         {lista.map((x) => {
           const atrasado = x.diff < 0;
           const cor = !atrasado ? 'bg-emerald-500' : x.horas >= x.esperado * 0.9 ? 'bg-amber-400' : 'bg-rose-400';
@@ -290,9 +291,9 @@ export function Painel() {
 
   // Pioneiros regulares: meta de 600 horas no ano de serviço (50 por mês).
   const pioneiros = useMemo(() => {
-    if (!ultimoMes) return null;
+    // Sem relatório importado, a meta conta até o mês que está sendo relatado.
     const ks = mesesDoAnoServico(anoServico);
-    const decorridos = ks.indexOf(ultimoMes) + 1;
+    const decorridos = ks.indexOf(ultimoMes ?? mesEsperado) + 1;
     const lista = ativos
       .filter((p) => p.privilegios.includes('pioneiro_regular'))
       .map((p) => {
@@ -300,7 +301,7 @@ export function Painel() {
         return { p, horas: rs.reduce((s, r) => s + (r?.horas ?? 0), 0), comCredito: rs.reduce((s, r) => s + totalComCreditos(r), 0) };
       });
     return { decorridos, lista };
-  }, [ativos, ultimoMes, anoServico]);
+  }, [ativos, ultimoMes, mesEsperado, anoServico]);
 
   // Aniversários de batismo no mês corrente.
   const hoje = new Date();
@@ -355,7 +356,7 @@ export function Painel() {
         <Indicador icone={<AlertTriangle size={18} />} cor="bg-amber-100 text-amber-600 dark:bg-amber-500/15" rotulo="Inativos" valor={stats.atencao.length} detalhe={`${pct(stats.atencao.length, ativos.length)}% dos publicadores`} />
       </div>
 
-      {pioneiros && pioneiros.lista.length > 0 && <MetaPioneiros anoServico={anoServico} {...pioneiros} />}
+      <MetaPioneiros anoServico={anoServico} {...pioneiros} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Cartao

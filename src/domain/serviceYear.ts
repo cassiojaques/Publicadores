@@ -60,9 +60,11 @@ export function ultimosMeses(n: number, ate: string): string[] {
   return out;
 }
 
-export function anosServicoComDados(p: Publicador): number[] {
+/** Anos com relatório, mais o atual e os dois anteriores (para poder lançar meses passados). */
+export function anosServicoComDados(p: Publicador, hoje = new Date()): number[] {
   const anos = new Set(Object.keys(p.relatorios).map(anoServicoDe));
-  anos.add(anoServicoAtual());
+  const atual = anoServicoAtual(hoje);
+  for (let a = atual - 2; a <= atual; a++) anos.add(a);
   return [...anos].sort((a, b) => b - a);
 }
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type KeyboardEvent } from 'react';
 import { Archive, ArchiveRestore, ArrowLeft, Download, Loader2, Pencil, Trash2, UserCheck, UserX, X } from 'lucide-react';
 import { definirAuxiliar, definirRelatorio, excluirRelatorio, mesesComDados, useStore } from '../store/store';
 import {
@@ -67,6 +67,39 @@ export function PublicadorDetalhe({ id }: { id: string }) {
   }
 
   const pioneiro = p.privilegios.includes('pioneiro_regular');
+
+  /** Setas andam entre os campos da tabela, como numa planilha. */
+  function navegarComSetas(e: KeyboardEvent<HTMLTableSectionElement>) {
+    const alvo = e.target as HTMLInputElement;
+    const td = alvo.closest('td');
+    const tr = td?.parentElement as HTMLTableRowElement | null;
+    if (!td || !tr || alvo.tagName !== 'INPUT' || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+
+    // No texto, esquerda/direita só saem do campo quando o cursor já está na ponta.
+    if (alvo.type === 'text') {
+      const { selectionStart: ini, selectionEnd: fim, value } = alvo;
+      if (e.key === 'ArrowLeft' && !(ini === 0 && fim === 0)) return;
+      if (e.key === 'ArrowRight' && !(ini === value.length && fim === value.length)) return;
+    }
+
+    const linhas = [...e.currentTarget.rows];
+    const campoDe = (c: Element | undefined) => c?.querySelector('input') ?? null;
+    let destino: HTMLInputElement | null = null;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      const passo = e.key === 'ArrowUp' ? -1 : 1;
+      for (let l = tr.sectionRowIndex + passo; !destino && l >= 0 && l < linhas.length; l += passo)
+        destino = campoDe(linhas[l].cells[td.cellIndex]);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      const passo = e.key === 'ArrowLeft' ? -1 : 1;
+      for (let c = td.cellIndex + passo; !destino && c >= 0 && c < tr.cells.length; c += passo) destino = campoDe(tr.cells[c]);
+    } else return;
+
+    // Sempre impede o padrão (número não muda com a seta), mesmo sem ter para onde ir.
+    e.preventDefault();
+    if (!destino) return;
+    destino.focus();
+    if (destino.type !== 'checkbox') destino.select();
+  }
 
   const numInput = (mes: string, campo: 'estudos' | 'horas' | 'creditos', v: number | null | undefined) => (
     <input
@@ -195,7 +228,7 @@ export function PublicadorDetalhe({ id }: { id: string }) {
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800" onKeyDown={navegarComSetas}>
               {meses.map((mes, i) => {
                 const r = p.relatorios[mes];
                 return (

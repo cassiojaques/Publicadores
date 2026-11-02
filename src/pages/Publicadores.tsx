@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Fuse from 'fuse.js';
-import { ChevronRight, ClipboardCopy, FileStack, FilterX, Plus, Search, Users } from 'lucide-react';
+import { ClipboardCopy, FileStack, FilterX, IdCard, Plus, Search, Users } from 'lucide-react';
 import { mesesComDados, moverPublicador, useStore } from '../store/store';
 import { situacao, type Situacao } from '../domain/serviceYear';
 import { PRIVILEGIOS, type Privilegio, type Publicador } from '../domain/types';
@@ -240,6 +240,7 @@ export function Publicadores() {
             <table className="w-full text-sm">
               <thead className="border-b border-indigo-100 dark:border-slate-800">
                 <tr>
+                  <th className="th w-8" />
                   <th className="th min-w-[200px]">Nome</th>
                   <th className="th">Sexo</th>
                   <th className="th" title="Batizado">Bat.</th>
@@ -247,7 +248,6 @@ export function Publicadores() {
                   <th className="th">Grupo</th>
                   <th className="th min-w-[130px]">Telefone</th>
                   <th className="th">Situação</th>
-                  <th className="th w-8" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 [&>tr:nth-child(even)]:bg-slate-50/70 dark:[&>tr:nth-child(even)]:bg-slate-800/20">
@@ -256,6 +256,16 @@ export function Publicadores() {
                   const auto = s === 'inativo' && !p.inativo;
                   return (
                     <tr key={p.id} className="hover:!bg-indigo-50/60 dark:hover:!bg-slate-800/40">
+                      <td className="py-0.5 pl-2">
+                        <button
+                          className="rounded-md p-1 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-500/15"
+                          onClick={() => navegar({ nome: 'publicador', id: p.id })}
+                          title="Abrir cartão e mais dados"
+                          aria-label={`Abrir ${p.nome}`}
+                        >
+                          <IdCard size={18} />
+                        </button>
+                      </td>
                       <td className="px-1 py-0.5">
                         <CelulaTexto
                           aria-label="Nome"
@@ -364,11 +374,6 @@ export function Publicadores() {
                           onClick={() => editar(p.id, (x) => (x.inativo = !x.inativo))}
                         >
                           {s === 'inativo' ? 'Inativo' : 'Ativo'}
-                        </button>
-                      </td>
-                      <td className="px-1 py-0.5">
-                        <button className="btn-ghost p-1" onClick={() => navegar({ nome: 'publicador', id: p.id })} title="Abrir cartão e mais dados" aria-label={`Abrir ${p.nome}`}>
-                          <ChevronRight size={16} />
                         </button>
                       </td>
                     </tr>

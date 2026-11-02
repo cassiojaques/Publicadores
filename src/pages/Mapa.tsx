@@ -12,6 +12,9 @@ import { Toggle } from '../components/ui';
 const CORES = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#e11d48', '#8b5cf6', '#14b8a6', '#f97316', '#84cc16', '#ec4899', '#0891b2', '#a16207'];
 const COR_SEM_GRUPO = '#64748b';
 const SEM = 'sem';
+/** O mapa sempre abre em Esteio, RS. */
+const CENTRO_INICIAL: L.LatLngTuple = [-29.8556, -51.1789];
+const ZOOM_INICIAL = 14;
 
 const alternar = <T,>(lista: T[], v: T) => (lista.includes(v) ? lista.filter((x) => x !== v) : [...lista, v]);
 
@@ -34,12 +37,12 @@ function Chip({ ativo, onClick, cor, children }: { ativo: boolean; onClick: () =
 }
 
 function iconePino(cor: string, qtd: number) {
-  const tam = qtd > 1 ? 22 : 16;
+  const tam = qtd > 1 ? 28 : 22;
   return L.divIcon({
     className: '',
     iconSize: [tam, tam],
     iconAnchor: [tam / 2, tam / 2],
-    html: `<span style="display:flex;align-items:center;justify-content:center;width:${tam}px;height:${tam}px;border-radius:9999px;background:${cor};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);color:#fff;font:600 11px system-ui">${qtd > 1 ? qtd : ''}</span>`,
+    html: `<span style="display:flex;align-items:center;justify-content:center;width:${tam}px;height:${tam}px;border-radius:9999px;background:${cor};border:3px solid #fff;box-shadow:0 0 0 1.5px rgba(15,23,42,.7),0 2px 6px rgba(0,0,0,.5);color:#fff;font:700 12px system-ui">${qtd > 1 ? qtd : ''}</span>`,
   });
 }
 
@@ -81,7 +84,7 @@ export function Mapa() {
   // Cria o mapa uma vez.
   useEffect(() => {
     if (!divMapa.current) return;
-    const m = L.map(divMapa.current, { zoomControl: true }).setView([-15.8, -47.9], 4);
+    const m = L.map(divMapa.current, { zoomControl: true }).setView(CENTRO_INICIAL, ZOOM_INICIAL);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; colaboradores do <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -139,14 +142,21 @@ export function Mapa() {
     }
   }, [noMapa.map((p) => `${p.id}:${p.local?.lat},${p.local?.lng},${p.grupoId}`).join('|'), ajustar, corDe]);
 
-  // Enquadra os pontos quando os filtros mudam (ou quando aparecem os primeiros).
-  const temPontos = noMapa.length > 0;
+  // Enquadra os pontos quando os filtros mudam; ao abrir, fica em Esteio.
+  const chaveFiltros = `${grupos.join()}|${sits.join()}`;
+  const filtrosAnteriores = useRef(chaveFiltros);
   useEffect(() => {
+    if (filtrosAnteriores.current === chaveFiltros) return;
+    filtrosAnteriores.current = chaveFiltros;
     const m = mapa.current;
-    if (!m || !temPontos) return;
+    if (!m) return;
+    if (noMapa.length === 0) {
+      m.setView(CENTRO_INICIAL, ZOOM_INICIAL);
+      return;
+    }
     const limites = L.latLngBounds(noMapa.map((p) => [localAtual(p)!.lat, localAtual(p)!.lng]));
     m.fitBounds(limites, { padding: [40, 40], maxZoom: 16 });
-  }, [grupos.join(), sits.join(), temPontos]);
+  }, [chaveFiltros]);
 
   async function localizar() {
     const fila = pendentes.map((p) => ({ id: p.id, endereco: p.endereco.trim() }));

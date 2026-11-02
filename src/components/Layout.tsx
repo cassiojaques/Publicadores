@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
-  AlertTriangle, Check, ClipboardList, CloudUpload, FileInput, LayoutDashboard, Lock, MapPin, Moon, Settings, Sun, Users, UsersRound,
+  AlertTriangle, Check, ClipboardList, CloudUpload, FileInput, LayoutDashboard, Lock, MapPin, Moon, PanelLeftClose, PanelLeftOpen, Settings, Sun, Users, UsersRound,
 } from 'lucide-react';
 import { useStore, type Pagina } from '../store/store';
 import { ReabrirComSenha } from './ReabrirComSenha';
@@ -53,46 +53,76 @@ function StatusSalvar() {
   );
 }
 
+/** Menu lateral recolhido (só ícones), lembrado entre as aberturas. */
+function useMenuRecolhido() {
+  const [recolhido, setRecolhido] = useState(() => {
+    try {
+      return localStorage.getItem('publicadores.menuRecolhido') === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('publicadores.menuRecolhido', recolhido ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [recolhido]);
+  return [recolhido, setRecolhido] as const;
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const { pagina, navegar, bloquear, db, conflito, toasts } = useStore();
   const [escuro, setEscuro] = useTema();
+  const [recolhido, setRecolhido] = useMenuRecolhido();
   const [resolverConflito, setResolverConflito] = useState(false);
   const ativo = pagina.nome === 'publicador' ? 'publicadores' : pagina.nome;
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <aside className="hidden w-60 shrink-0 flex-col bg-gradient-to-b from-indigo-950 via-indigo-900 to-indigo-950 px-3 py-4 text-indigo-100 dark:border-r dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 md:flex">
-        <div className="mb-6 flex items-center gap-2 px-2">
+      <aside className={`hidden ${recolhido ? 'w-16 px-2' : 'w-60 px-3'} shrink-0 flex-col bg-gradient-to-b from-indigo-950 via-indigo-900 to-indigo-950 py-4 text-indigo-100 dark:border-r dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 md:flex`}>
+        <div className={`mb-6 flex items-center gap-2 ${recolhido ? 'flex-col' : 'px-2'}`}>
           <span className="rounded-lg bg-gradient-to-br from-indigo-400 to-violet-500 p-1.5 text-white shadow-lg shadow-indigo-950/40">
             <Users size={18} />
           </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">Publicadores</p>
-            <p className="truncate text-xs text-indigo-300/80 dark:text-slate-400">{db.congregacao.nome || 'Congregação'}</p>
-          </div>
+          {!recolhido && (
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-white">Publicadores</p>
+              <p className="truncate text-xs text-indigo-300/80 dark:text-slate-400">{db.congregacao.nome || 'Congregação'}</p>
+            </div>
+          )}
+          <button
+            className="rounded-lg p-1.5 text-indigo-200/80 hover:bg-white/10 hover:text-white dark:text-slate-400"
+            onClick={() => setRecolhido(!recolhido)}
+            title={recolhido ? 'Expandir o menu' : 'Recolher o menu'}
+          >
+            {recolhido ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
         </div>
         <nav className="space-y-0.5">
           {NAV.map((n) => (
             <button
               key={n.p}
               onClick={() => navegar({ nome: n.p } as Pagina)}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+              title={recolhido ? n.rotulo : undefined}
+              className={`flex w-full items-center gap-3 rounded-lg py-2 text-sm transition ${recolhido ? 'justify-center px-0' : 'px-3'} ${
                 ativo === n.p
                   ? 'bg-white/15 font-medium text-white shadow-inner dark:bg-indigo-500/15 dark:text-indigo-200'
                   : 'text-indigo-200/80 hover:bg-white/10 hover:text-white dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'
               }`}
             >
               {n.icone}
-              {n.rotulo}
+              {!recolhido && n.rotulo}
             </button>
           ))}
         </nav>
 
-        <div className="mt-auto space-y-3 border-t border-white/10 px-2 pt-3 dark:border-slate-800">
-          <BotaoInstalarTopo />
-          <div className="flex items-center gap-1">
-            <StatusSalvar />
-            <button className="ml-auto rounded-lg p-2 text-indigo-200/80 hover:bg-white/10 hover:text-white dark:text-slate-400" onClick={() => setEscuro(!escuro)} title="Alternar tema">
+        <div className={`mt-auto space-y-3 border-t border-white/10 pt-3 dark:border-slate-800 ${recolhido ? '' : 'px-2'}`}>
+          {!recolhido && <BotaoInstalarTopo />}
+          <div className={`flex items-center gap-1 ${recolhido ? 'flex-col' : ''}`}>
+            {!recolhido && <StatusSalvar />}
+            <button className={`${recolhido ? '' : 'ml-auto'} rounded-lg p-2 text-indigo-200/80 hover:bg-white/10 hover:text-white dark:text-slate-400`} onClick={() => setEscuro(!escuro)} title="Alternar tema">
               {escuro ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <button className="rounded-lg p-2 text-indigo-200/80 hover:bg-white/10 hover:text-white dark:text-slate-400" onClick={bloquear} title="Bloquear (pede o PIN na próxima vez)">

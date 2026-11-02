@@ -3,7 +3,7 @@ import { CalendarPlus, ClipboardCopy, ClipboardList, FileInput, ImageDown, Loade
 import {
   definirAuxiliar, definirRelatorio, excluirMes, excluirRelatorio, garantirMes, mesesComDados, useStore,
 } from '../store/store';
-import { mesRelatorioAtual, nomeMes } from '../domain/serviceYear';
+import { anoServicoDe, mesRelatorioAtual, nomeMes } from '../domain/serviceYear';
 import { faltantesPorGrupo, statusDoMes, textoFaltantes, totaisDoMes, type LinhaMes, type StatusMes } from '../domain/relatorios';
 import { auxiliarNoMes, type RelatorioMes } from '../domain/types';
 import { Avatar, BadgesPrivilegio, Confirmar, Modal, Toggle, Vazio } from '../components/ui';
@@ -26,7 +26,10 @@ export function Relatorios({ mesInicial }: { mesInicial?: string }) {
   const meses = useMemo(() => mesesComDados(db), [db]);
   const lista = useMemo(() => [...meses].sort().reverse(), [meses]);
   const [mesSel, setMesSel] = useState<string | undefined>(mesInicial);
-  const mes = mesSel && meses.has(mesSel) ? mesSel : lista[0];
+  // Em novembro se entrega o relatório de outubro: é esse que abre por padrão, não o último mês lançado.
+  const aRelatar = mesRelatorioAtual();
+  const padrao = meses.has(aRelatar) ? aRelatar : (lista.find((m) => m <= aRelatar) ?? lista[0]);
+  const mes = mesSel && meses.has(mesSel) ? mesSel : padrao;
   const [novoMes, setNovoMes] = useState<string | null>(null);
   const [excluir, setExcluir] = useState(false);
 
@@ -56,9 +59,17 @@ export function Relatorios({ mesInicial }: { mesInicial?: string }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Relatórios</h1>
-          <p className="text-sm text-slate-500">Alterações aqui atualizam os cartões S-21 na hora.</p>
+          <p className="text-sm text-slate-500">
+            Agora, em {new Date().toLocaleDateString('pt-BR', { month: 'long' })}, os publicadores entregam o relatório de <b>{nomeMes(aRelatar)}</b>.
+            Alterações aqui atualizam os cartões S-21 na hora.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {mes !== aRelatar && meses.has(aRelatar) && (
+            <button className="btn-outline" onClick={() => setMesSel(aRelatar)}>
+              Ir para {nomeMes(aRelatar)}
+            </button>
+          )}
           <button className="btn-outline" onClick={() => setNovoMes(mesRelatorioAtual())}>
             <CalendarPlus size={16} /> Novo mês
           </button>
@@ -69,7 +80,7 @@ export function Relatorios({ mesInicial }: { mesInicial?: string }) {
       </div>
 
       <div className="grid items-start gap-4 lg:grid-cols-[240px_1fr]">
-        <ListaMeses meses={lista} atual={mes} onEscolher={setMesSel} />
+        <ListaMeses meses={lista} atual={mes} aRelatar={aRelatar} onEscolher={setMesSel} />
         <DetalheMes key={mes} mes={mes} onExcluirMes={() => setExcluir(true)} />
       </div>
 
@@ -96,42 +107,69 @@ export function Relatorios({ mesInicial }: { mesInicial?: string }) {
   );
 }
 
-function ListaMeses({ meses: ms, atual, onEscolher }: { meses: string[]; atual: string; onEscolher: (m: string) => void }) {
+function ListaMeses({
+  meses: ms,
+  atual,
+  aRelatar,
+  onEscolher,
+}: {
+  meses: string[];
+  atual: string;
+  aRelatar: string;
+  onEscolher: (m: string) => void;
+}) {
   const db = useStore((e) => e.db);
   const meses = useMemo(() => mesesComDados(db), [db]);
+  const futuros = ms.filter((m) => m > aRelatar);
+  const passados = ms.filter((m) => m <= aRelatar);
+
+  const item = (m: string) => {
+    const linhas = statusDoMes(db, m, meses);
+    const esperados = linhas.filter((l) => l.status !== 'inativo').length;
+    const relatou = linhas.filter((l) => l.status === 'relatou').length;
+    const faltam = linhas.filter((l) => l.status === 'falta').length;
+    const pct = esperados ? Math.round((relatou / esperados) * 100) : 100;
+    return (
+      <button
+        key={m}
+        onClick={() => onEscolher(m)}
+        className={`w-full rounded-lg px-3 py-2.5 text-left transition ${
+          m === atual ? 'bg-indigo-50 dark:bg-indigo-500/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+        }`}
+      >
+        <span className="flex items-center justify-between gap-2 text-sm">
+          <span className={m === atual ? 'font-semibold text-indigo-700 dark:text-indigo-300' : 'font-medium'}>{nomeMes(m)}</span>
+          {faltam > 0 ? (
+            <span className="badge bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">faltam {faltam}</span>
+          ) : (
+            <span className="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">completo</span>
+          )}
+        </span>
+        <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+          <span className="block h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+        </span>
+        <span className="mt-1 flex items-center justify-between gap-2 text-xs text-slate-500">
+          <span>
+            {relatou} de {esperados} relataram
+          </span>
+          {m === aRelatar && <span className="font-semibold text-indigo-600 dark:text-indigo-400">mês a relatar</span>}
+        </span>
+      </button>
+    );
+  };
+
   return (
     <nav className="card max-h-[70vh] overflow-y-auto p-1.5">
-      {ms.map((m) => {
-        const linhas = statusDoMes(db, m, meses);
-        const esperados = linhas.filter((l) => l.status !== 'inativo').length;
-        const relatou = linhas.filter((l) => l.status === 'relatou').length;
-        const faltam = linhas.filter((l) => l.status === 'falta').length;
-        const pct = esperados ? Math.round((relatou / esperados) * 100) : 100;
-        return (
-          <button
-            key={m}
-            onClick={() => onEscolher(m)}
-            className={`w-full rounded-lg px-3 py-2.5 text-left transition ${
-              m === atual ? 'bg-indigo-50 dark:bg-indigo-500/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
-            }`}
-          >
-            <span className="flex items-center justify-between gap-2 text-sm">
-              <span className={m === atual ? 'font-semibold text-indigo-700 dark:text-indigo-300' : 'font-medium'}>{nomeMes(m)}</span>
-              {faltam > 0 ? (
-                <span className="badge bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">faltam {faltam}</span>
-              ) : (
-                <span className="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">completo</span>
-              )}
-            </span>
-            <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-              <span className="block h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
-            </span>
-            <span className="mt-1 block text-xs text-slate-500">
-              {relatou} de {esperados} relataram
-            </span>
-          </button>
-        );
-      })}
+      {passados.map(item)}
+      {futuros.length > 0 && (
+        <>
+          <p className="mx-3 mb-1 mt-3 border-t border-slate-200 pt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:border-slate-800">
+            Meses futuros
+          </p>
+          <p className="mx-3 mb-1 text-xs text-slate-500">Lançados no cartão antes da hora. Confira ou exclua.</p>
+          {futuros.map(item)}
+        </>
+      )}
     </nav>
   );
 }
@@ -251,11 +289,12 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
       <div className="card p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold">{nomeMes(mes)}</h2>
+            <h2 className="text-lg font-semibold">Relatório de {nomeMes(mes)}</h2>
             <p className="text-xs text-slate-500">
+              Ano de serviço {anoServicoDe(mes)} (set/{anoServicoDe(mes) - 1} – ago/{anoServicoDe(mes)}) ·{' '}
               {importacao?.arquivo && importacao.arquivo !== '(manual)'
-                ? `Importado de ${importacao.arquivo} em ${new Date(importacao.data).toLocaleDateString('pt-BR')}`
-                : 'Preenchido manualmente'}
+                ? `importado em ${new Date(importacao.data).toLocaleDateString('pt-BR')} (${importacao.arquivo})`
+                : 'preenchido manualmente'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

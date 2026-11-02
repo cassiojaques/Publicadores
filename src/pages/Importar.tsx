@@ -5,7 +5,7 @@ import {
   aplicar, comMes, lerColadoRelatorio, lerJsonRelatorio, lerPlanilhaRelatorio, mesSugerido, prever, relataHoras, type LinhaLida, type Previa,
 } from '../import/relatorioCampo';
 import { BadgesPrivilegio, Toggle } from '../components/ui';
-import { nomeMes } from '../domain/serviceYear';
+import { mesRelatorioAtual, nomeMes } from '../domain/serviceYear';
 import { ImportarPlanilha } from './ImportarPlanilha';
 
 type Aba = 'relatorio' | 'planilha';
@@ -107,7 +107,7 @@ function ImportarRelatorio() {
     atualizar((d) => {
       n = aplicar(d, previa, arquivo, criar);
     });
-    toast(`${n} relatórios importados.`);
+    toast(`${n} relatórios de ${previa.meses.map(nomeMes).join(', ')} importados.`);
     fechar();
     navegar({ nome: 'relatorios', mes: previa.meses[previa.meses.length - 1] });
   }
@@ -122,9 +122,16 @@ function ImportarRelatorio() {
   const mesesJaImportados = previa?.meses.filter((m) => db.importacoes.some((i) => i.mes === m)) ?? [];
   const alertas = previa?.itens.filter(horasSemPioneiro) ?? [];
   const irregulares = previa?.itens.filter((i) => !i.linha.relatorio.participou) ?? [];
+  const hoje = new Date();
+  // Só importações de verdade: meses criados à mão ou lançados no cartão não entram no histórico.
+  const historico = db.importacoes.filter((i) => i.arquivo && i.arquivo !== '(manual)').reverse();
 
   return (
     <div className="space-y-5">
+      <div className="rounded-lg bg-indigo-50 p-3 text-sm text-indigo-900 dark:bg-indigo-500/10 dark:text-indigo-200">
+        Hoje é {hoje.toLocaleDateString('pt-BR')}: o relatório a importar agora é o de <b>{nomeMes(mesRelatorioAtual(hoje))}</b> (o mês
+        anterior). O mês é sugerido pela data de envio e você confere na prévia.
+      </div>
       <p className="text-sm text-slate-500">
         Use a planilha do relatório com as colunas <b>Nome, Participou, Estudos, Horas, Observações</b> e <b>Enviado em</b>. Você poderá conferir e ajustar tudo antes de importar.
       </p>
@@ -177,12 +184,14 @@ function ImportarRelatorio() {
       {previa && (
         <div className="card space-y-4 p-5">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="font-semibold">Prévia</h2>
+            <h2 className="font-semibold">
+              Prévia · relatório de <span className="text-indigo-700 dark:text-indigo-300">{previa.meses.map(nomeMes).join(', ')}</span>
+            </h2>
             <span className="flex items-center gap-1 text-sm text-slate-500"><FileSpreadsheet size={14} /> {arquivo}</span>
             <div className="ml-auto flex items-center gap-2">
               {precisaMes ? (
                 <label className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">Mês do relatório</span>
+                  <span className="font-medium">Mês a que se refere</span>
                   <input type="month" className="input w-auto py-1" value={mes} onChange={(e) => e.target.value && setMes(e.target.value)} />
                 </label>
               ) : (
@@ -194,7 +203,8 @@ function ImportarRelatorio() {
           </div>
           {precisaMes && (
             <p className="-mt-2 text-xs text-slate-500">
-              {nomeMes(mes)}: sugerido pela data de envio (o mês anterior). Troque se precisar.
+              {nomeMes(mes)}: sugerido pela data de envio (o mês anterior). Troque se precisar. A importação fica registrada com a data de hoje,{' '}
+              {hoje.toLocaleDateString('pt-BR')}.
             </p>
           )}
 
@@ -336,21 +346,33 @@ function ImportarRelatorio() {
         </div>
       )}
 
-      {db.importacoes.length > 0 && (
+      {historico.length > 0 && (
         <div className="card p-5">
           <h2 className="mb-3 font-semibold">Histórico de importações</h2>
-          <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
-            {[...db.importacoes].reverse().map((i) => (
-              <li key={i.mes} className="flex justify-between py-2">
-                <button className="font-medium text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => navegar({ nome: 'relatorios', mes: i.mes })}>
-                  {nomeMes(i.mes)}
-                </button>
-                <span className="text-slate-500">
-                  {i.registros} registros · {i.arquivo} · {new Date(i.data).toLocaleDateString('pt-BR')}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="th">Relatório de</th>
+                <th className="th">Importado em</th>
+                <th className="th">Arquivo</th>
+                <th className="th text-right">Relatórios</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {historico.map((i) => (
+                <tr key={i.mes}>
+                  <td className="td">
+                    <button className="font-medium text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => navegar({ nome: 'relatorios', mes: i.mes })}>
+                      {nomeMes(i.mes)}
+                    </button>
+                  </td>
+                  <td className="td whitespace-nowrap text-slate-500">{new Date(i.data).toLocaleDateString('pt-BR')}</td>
+                  <td className="td text-slate-500">{i.arquivo}</td>
+                  <td className="td text-right tabular-nums text-slate-500">{i.registros}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

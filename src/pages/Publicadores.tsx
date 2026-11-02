@@ -4,7 +4,7 @@ import { ChevronRight, ClipboardCopy, FileStack, FilterX, Plus, Search, Users } 
 import { mesesComDados, moverPublicador, useStore } from '../store/store';
 import { situacao, type Situacao } from '../domain/serviceYear';
 import { PRIVILEGIOS, type Privilegio, type Publicador } from '../domain/types';
-import { Vazio } from '../components/ui';
+import { Toggle, Vazio } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
 import { GerarCartoes } from '../components/GerarCartoes';
 import { salvarArquivoGerado } from '../storage/storage';
@@ -187,7 +187,7 @@ export function Publicadores() {
           <input className="input py-1.5 pl-9" placeholder="Filtrar por nome, telefone…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <label className="flex items-center gap-2 px-2 text-sm text-slate-600 dark:text-slate-400">
-          <input type="checkbox" className="accent-indigo-600" checked={arquivados} onChange={(e) => setArquivados(e.target.checked)} />
+          <Toggle checked={arquivados} onChange={(e) => setArquivados(e.target.checked)} />
           Arquivados
         </label>
         <button className="btn-ghost py-1.5" onClick={limparFiltros} disabled={!temFiltro} title="Volta todos os filtros ao padrão">
@@ -286,9 +286,7 @@ export function Publicadores() {
                         </select>
                       </td>
                       <td className="px-3 py-0.5 text-center">
-                        <input
-                          type="checkbox"
-                          className="accent-indigo-600"
+                        <Toggle
                           checked={p.batizado}
                           aria-label={`${p.nome} é batizado`}
                           onChange={(e) =>

@@ -4,7 +4,7 @@ import { PDFDocument } from 'pdf-lib';
 import { cifrar, decifrar, derivarChave, SenhaIncorretaError } from '../src/crypto/crypto';
 import { anoServicoDe, interpretarData, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico } from '../src/domain/serviceYear';
 import { dbVazio, novoPublicador } from '../src/domain/types';
-import { aplicar, analisarJson, normalizarMes, prever } from '../src/import/relatorioCampo';
+import { aplicar, analisarJson, comMes, lerColadoRelatorio, mesSugerido, normalizarMes, prever, relataHoras } from '../src/import/relatorioCampo';
 import { definirAuxiliar, definirRelatorio, excluirMes, excluirRelatorio, mesesComDados, moverPublicador } from '../src/store/store';
 import { statusDoMes, textoFaltantes, totaisDoMes } from '../src/domain/relatorios';
 import { gerarS21 } from '../src/pdf/s21';
@@ -105,14 +105,14 @@ describe('PDFs', () => {
     const bytes = await gerarPdfGrupos(db);
     expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
   });
-  it('PDF dos grupos sempre numa página e respeita "apenas ativos"', async () => {
+  it('PDF dos grupos sempre numa página e respeita o filtro de situação', async () => {
     const db = dbVazio('Central');
     for (let g = 1; g <= 9; g++) {
       db.grupos.push({ id: `g${g}`, nome: `Grupo ${g}`, superintendenteId: null, ajudanteId: null });
       for (let i = 0; i < 25; i++) db.publicadores.push(novoPublicador({ nome: `Pub ${g}-${i}`, grupoId: `g${g}`, inativo: i === 0 }));
     }
-    for (const soAtivos of [false, true]) {
-      const pdf = await PDFDocument.load(await gerarPdfGrupos(db, { soAtivos }));
+    for (const [sit, siglas] of [['todos', true], ['ativo', false], ['inativo', true]] as const) {
+      const pdf = await PDFDocument.load(await gerarPdfGrupos(db, { situacao: sit, siglas }));
       expect(pdf.getPageCount()).toBe(1);
     }
   });
@@ -269,5 +269,32 @@ describe('menu de relatórios', () => {
     excluirMes(db, '2026-10');
     expect(ana.relatorios['2026-10']).toBeUndefined();
     expect(db.importacoes).toHaveLength(0);
+  });
+});
+
+describe('relatório colado da planilha', () => {
+  const texto = [
+    'Nome\tParticipou\tEstudos\tHoras\tObservações\tEnviado em',
+    'Ana Lima\tSim\t1\t\t\t01/11/2026, 15:19',
+    'Beto Souza\tSim\t2\t50\tNão\t01/11/2026, 15:21',
+    'Caio Reis\tNão\t0\t\t\t02/11/2026, 09:00',
+    '\t\t\t\t\t',
+  ].join('\n');
+  it('lê colunas, sugere o mês anterior ao envio e marca PA como designação', () => {
+    const lidas = lerColadoRelatorio(texto);
+    expect(lidas).toHaveLength(3);
+    expect(lidas[1].relatorio).toMatchObject({ participou: true, estudos: 2, horas: 50, obs: 'Não' });
+    expect(lidas[2].relatorio.participou).toBe(false);
+    expect(mesSugerido(lidas)).toBe('2026-10');
+
+    const db = dbVazio();
+    const beto = novoPublicador({ nome: 'Beto Souza' });
+    db.publicadores.push(novoPublicador({ nome: 'Ana Lima' }), beto, novoPublicador({ nome: 'Caio Reis' }));
+    expect(relataHoras(beto)).toBe(false);
+    const previa = prever(db, comMes(lidas, '2026-10'));
+    previa.itens[1].linha.relatorio.auxiliar = true; // marcado PA na prévia
+    aplicar(db, previa, 'colado', false);
+    expect(beto.relatorios['2026-10']).toMatchObject({ horas: 50, auxiliar: true });
+    expect(beto.auxiliarMeses).toEqual(['2026-10']);
   });
 });

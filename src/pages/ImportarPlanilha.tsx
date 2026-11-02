@@ -4,6 +4,7 @@ import { useStore } from '../store/store';
 import { aplicarPlanilha, interpretarGrupo, lerPlanilha, preverPlanilha, type LinhaPlanilha, type PreviaPlanilha } from '../import/planilhaPublicadores';
 import { chaveMes, nomeMes } from '../domain/serviceYear';
 import { PRIVILEGIOS } from '../domain/types';
+import { Toggle } from '../components/ui';
 
 function textoSituacao(l: LinhaPlanilha, mesAuxiliar: string): string {
   const pioneiro = PRIVILEGIOS.find((x) => x.id !== 'anciao' && x.id !== 'servo_ministerial' && l.privilegios.includes(x.id));
@@ -107,7 +108,7 @@ export function ImportarPlanilha() {
 
           {previa.existentes.length > 0 && (
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" className="accent-indigo-600" checked={atualizarExistentes} onChange={(e) => setAtualizarExistentes(e.target.checked)} />
+              <Toggle checked={atualizarExistentes} onChange={(e) => setAtualizarExistentes(e.target.checked)} />
               Atualizar grupo, sexo, batismo, situação e privilégios dos {previa.existentes.length} já cadastrados
             </label>
           )}

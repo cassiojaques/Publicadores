@@ -1,7 +1,7 @@
 import { PDFDocument, rgb, StandardFonts, type PDFFont } from 'pdf-lib';
 import { PRIVILEGIOS, type Db, type Publicador } from '../domain/types';
 import { mesesComDados } from '../store/store';
-import { situacao } from '../domain/serviceYear';
+import { situacao, type Situacao } from '../domain/serviceYear';
 
 const A4: [number, number] = [595.28, 841.89];
 const MARGEM = 32;
@@ -11,15 +11,17 @@ const cor = {
   texto: rgb(0.12, 0.14, 0.18),
   suave: rgb(0.42, 0.45, 0.5),
   destaque: rgb(0.27, 0.32, 0.8),
-  fundo: rgb(0.94, 0.95, 0.98),
+  fundo: rgb(0.93, 0.94, 0.99),
+  zebra: rgb(0.97, 0.975, 0.985),
   borda: rgb(0.85, 0.87, 0.91),
+  branco: rgb(1, 1, 1),
 };
 
 type Linha =
-  | { tipo: 'titulo'; texto: string }
+  | { tipo: 'titulo'; texto: string; qtd?: number }
   | { tipo: 'funcao'; rotulo: string; texto: string }
   | { tipo: 'separador' }
-  | { tipo: 'membro'; texto: string; extra: string };
+  | { tipo: 'membro'; n: number; texto: string; extra: string };
 
 /** Altura de cada tipo de linha em escala 1. */
 const ALTURA: Record<Linha['tipo'], number> = { titulo: 22, funcao: 14, separador: 4, membro: 14 };
@@ -28,19 +30,19 @@ export function siglas(p: Publicador): string {
   return PRIVILEGIOS.filter((x) => p.privilegios.includes(x.id)).map((x) => x.curto).join(', ');
 }
 
-function linhasDoGrupo(db: Db, membrosTodos: Publicador[], grupoId: string | null, nome: string): Linha[] {
+function linhasDoGrupo(db: Db, membrosTodos: Publicador[], grupoId: string | null, nome: string, comSiglas: boolean): Linha[] {
   const g = db.grupos.find((x) => x.id === grupoId);
   const membros = membrosTodos
     .filter((p) => p.grupoId === grupoId)
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }));
   const nomeDe = (id: string | null | undefined) => db.publicadores.find((p) => p.id === id)?.nome ?? '—';
-  const linhas: Linha[] = [{ tipo: 'titulo', texto: `${nome}  (${membros.length})` }];
+  const linhas: Linha[] = [{ tipo: 'titulo', texto: nome, qtd: membros.length }];
   if (g) {
     linhas.push({ tipo: 'funcao', rotulo: 'Superintendente', texto: nomeDe(g.superintendenteId) });
     linhas.push({ tipo: 'funcao', rotulo: 'Ajudante', texto: nomeDe(g.ajudanteId) });
     if (membros.length) linhas.push({ tipo: 'separador' });
   }
-  for (const p of membros) linhas.push({ tipo: 'membro', texto: p.nome, extra: siglas(p) });
+  membros.forEach((p, i) => linhas.push({ tipo: 'membro', n: i + 1, texto: p.nome, extra: comSiglas ? siglas(p) : '' }));
   return linhas;
 }
 
@@ -105,8 +107,16 @@ function melhorEscala(blocos: Linha[][], colunas: number, alturaPt: number, queb
   return lo;
 }
 
-/** Gera o PDF com todos os grupos numa única página A4, reduzindo a letra quando preciso. */
-export async function gerarPdfGrupos(db: Db, { soAtivos = false }: { soAtivos?: boolean } = {}): Promise<Uint8Array> {
+export type FiltroSituacao = 'todos' | Situacao;
+
+/**
+ * Gera o PDF com todos os grupos numa única página A4, reduzindo a letra quando preciso.
+ * `siglas: false` lista só os nomes, sem as designações (A, SM, PR…).
+ */
+export async function gerarPdfGrupos(
+  db: Db,
+  { situacao: filtro = 'todos', siglas: comSiglas = true }: { situacao?: FiltroSituacao; siglas?: boolean } = {},
+): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle('Grupos de Campo');
   const normal = await doc.embedFont(StandardFonts.Helvetica);
@@ -116,9 +126,9 @@ export async function gerarPdfGrupos(db: Db, { soAtivos = false }: { soAtivos?: 
   const alturaPt = inicioConteudo - MARGEM;
 
   const meses = mesesComDados(db);
-  const membros = db.publicadores.filter((p) => !p.arquivado && !(soAtivos && situacao(p, meses) === 'inativo'));
-  const blocos = db.grupos.map((g) => linhasDoGrupo(db, membros, g.id, g.nome));
-  const semGrupo = linhasDoGrupo(db, membros, null, 'Sem grupo');
+  const membros = db.publicadores.filter((p) => !p.arquivado && (filtro === 'todos' || situacao(p, meses) === filtro));
+  const blocos = db.grupos.map((g) => linhasDoGrupo(db, membros, g.id, g.nome, comSiglas));
+  const semGrupo = linhasDoGrupo(db, membros, null, 'Sem grupo', comSiglas);
   if (semGrupo.length > 1) blocos.push(semGrupo);
 
   // Escolhe o número de colunas e o modo que deixam a letra maior. Grupo inteiro numa
@@ -140,20 +150,41 @@ export async function gerarPdfGrupos(db: Db, { soAtivos = false }: { soAtivos?: 
   const pagina = doc.addPage(A4);
   const titulo = `Grupos de Campo${db.congregacao.nome ? ' — ' + db.congregacao.nome : ''}`;
   pagina.drawText(titulo, { x: MARGEM, y: topo - 14, size: 16, font: negrito, color: cor.texto });
-  const data = new Date().toLocaleDateString('pt-BR');
-  pagina.drawText(data, { x: A4[0] - MARGEM - normal.widthOfTextAtSize(data, 9), y: topo - 12, size: 9, font: normal, color: cor.suave });
+  const filtroTxt = filtro === 'ativo' ? ' ativos' : filtro === 'inativo' ? ' inativos' : '';
+  const resumo = `${membros.length} publicadores${filtroTxt} · ${new Date().toLocaleDateString('pt-BR')}`;
+  pagina.drawText(resumo, { x: A4[0] - MARGEM - normal.widthOfTextAtSize(resumo, 9), y: topo - 12, size: 9, font: normal, color: cor.suave });
+  pagina.drawLine({ start: { x: MARGEM, y: topo - 22 }, end: { x: A4[0] - MARGEM, y: topo - 22 }, thickness: 1.2, color: cor.destaque });
+
+  // Legenda das siglas no rodapé, só das que aparecem.
+  if (comSiglas) {
+    const usadas = PRIVILEGIOS.filter((x) => membros.some((p) => p.privilegios.includes(x.id)));
+    const legenda = usadas.map((x) => `${x.curto} = ${x.label}`).join('   ·   ');
+    if (legenda) pagina.drawText(legenda, { x: MARGEM, y: MARGEM / 2, size: 7, font: normal, color: cor.suave });
+  }
 
   const gap = 12;
   const largCol = (A4[0] - MARGEM * 2 - gap * (colunas - 1)) / colunas;
   cols.forEach((linhas, c) => {
     const x0 = MARGEM + c * (largCol + gap);
     let y = inicioConteudo;
+    // Coluna dos números com largura fixa, para os nomes ficarem alinhados.
+    const largNum = normal.widthOfTextAtSize('00.', 8 * s);
     linhas.forEach((l, i) => {
       if (l.tipo === 'titulo') {
         if (i > 0) y -= GAP * s;
         const h = 18 * s;
         pagina.drawRectangle({ x: x0, y: y - h, width: largCol, height: h, color: cor.fundo });
-        pagina.drawText(cortar(l.texto, negrito, 11 * s, largCol - 12), { x: x0 + 6, y: y - 13 * s, size: 11 * s, font: negrito, color: cor.texto });
+        pagina.drawRectangle({ x: x0, y: y - h, width: 2.5, height: h, color: cor.destaque });
+        let largQtd = 0;
+        if (l.qtd !== undefined) {
+          const q = String(l.qtd);
+          const tq = 8.5 * s;
+          largQtd = negrito.widthOfTextAtSize(q, tq) + 10 * s;
+          const hq = 12 * s;
+          pagina.drawRectangle({ x: x0 + largCol - 5 * s - largQtd, y: y - h / 2 - hq / 2, width: largQtd, height: hq, color: cor.destaque });
+          pagina.drawText(q, { x: x0 + largCol - 5 * s - largQtd + 5 * s, y: y - h / 2 - tq * 0.35, size: tq, font: negrito, color: cor.branco });
+        }
+        pagina.drawText(cortar(l.texto, negrito, 11 * s, largCol - 16 - largQtd), { x: x0 + 8, y: y - 13 * s, size: 11 * s, font: negrito, color: cor.texto });
       } else if (l.tipo === 'funcao') {
         // Em colunas estreitas, abrevia o rótulo para sobrar espaço ao nome.
         const rot = colunas > 2 ? (l.rotulo === 'Superintendente' ? 'SUP.' : 'AJ.') : l.rotulo.toUpperCase();
@@ -163,8 +194,12 @@ export async function gerarPdfGrupos(db: Db, { soAtivos = false }: { soAtivos?: 
       } else if (l.tipo === 'separador') {
         pagina.drawLine({ start: { x: x0, y: y - 2 * s }, end: { x: x0 + largCol, y: y - 2 * s }, thickness: 0.5, color: cor.borda });
       } else {
+        if (l.n % 2 === 0) pagina.drawRectangle({ x: x0, y: y - ALTURA.membro * s, width: largCol, height: ALTURA.membro * s, color: cor.zebra });
+        const num = `${l.n}.`;
+        pagina.drawText(num, { x: x0 + 6 + largNum - normal.widthOfTextAtSize(num, 8 * s), y: y - 10 * s, size: 8 * s, font: normal, color: cor.suave });
+        const xNome = x0 + 6 + largNum + 4 * s;
         const extraW = l.extra ? normal.widthOfTextAtSize(l.extra, 8 * s) : 0;
-        pagina.drawText(cortar(l.texto, normal, 9.5 * s, largCol - extraW - 18), { x: x0 + 6, y: y - 10 * s, size: 9.5 * s, font: normal, color: cor.texto });
+        pagina.drawText(cortar(l.texto, normal, 9.5 * s, x0 + largCol - xNome - extraW - 12), { x: xNome, y: y - 10 * s, size: 9.5 * s, font: normal, color: cor.texto });
         if (l.extra) pagina.drawText(l.extra, { x: x0 + largCol - 6 - extraW, y: y - 10 * s, size: 8 * s, font: normal, color: cor.suave });
       }
       y -= ALTURA[l.tipo] * s;

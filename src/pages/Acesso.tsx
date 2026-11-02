@@ -4,6 +4,7 @@ import { useStore } from '../store/store';
 import { escolherArquivoExistente, escolherNovoArquivo, ehTauri, temFsAccess } from '../storage/storage';
 import { SenhaIncorretaError } from '../crypto/crypto';
 import { BannerInstalar } from '../components/Instalar';
+import { Toggle } from '../components/ui';
 
 export function senhaValida(s: string) {
   return /^\d{4}$/.test(s) || s.length >= 6;
@@ -75,7 +76,7 @@ export function Desbloquear() {
         />
         {erro && <p className="mt-2 text-center text-sm text-rose-600">{erro}</p>}
         <label className="mt-3 flex items-center justify-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-          <input type="checkbox" className="accent-indigo-600" checked={lembrar} onChange={(e) => setLembrar(e.target.checked)} />
+          <Toggle checked={lembrar} onChange={(e) => setLembrar(e.target.checked)} />
           Não pedir o PIN neste dispositivo
         </label>
         <button className="btn-primary mt-4 w-full" disabled={!senha || carregando}>

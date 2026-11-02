@@ -1,12 +1,15 @@
 import type { Db, Publicador, RelatorioMes } from '../domain/types';
 import { auxiliarNoMes, novoPublicador } from '../domain/types';
-import { chaveMes } from '../domain/serviceYear';
+import { chaveMes, mesRelatorioAtual } from '../domain/serviceYear';
 
 /**
  * Importador do relatório de campo mensal.
  *
- * PROVISÓRIO: aceita formatos comuns até recebermos o JSON real do outro sistema.
- * Formatos aceitos:
+ * Planilha (.xlsx/.csv ou colada do Google Planilhas), primeira linha = cabeçalho:
+ *   Nome | Participou | Estudos | Horas | Observações | Enviado em
+ * Sem coluna de mês, o mês sai de "Enviado em" (o mês anterior ao envio) e pode ser trocado na prévia.
+ *
+ * JSON também é aceito:
  *   [ {nome, mes, participou, estudos, auxiliar, horas, observacoes}, ... ]
  *   { mes: "2026-09", relatorios: [ {nome, participou, ...}, ... ] }
  * Os nomes de campo são procurados por apelidos (ver ALIASES).
@@ -18,6 +21,13 @@ export interface LinhaImportada {
   relatorio: RelatorioMes;
 }
 
+/** Linha lida do arquivo, antes de definir o mês (planilhas não trazem o mês). */
+export interface LinhaLida extends Omit<LinhaImportada, 'mes'> {
+  mes: string | null;
+  /** Mês sugerido pela data de envio: o anterior ao envio. */
+  mesEnvio: string | null;
+}
+
 const ALIASES = {
   id: ['id', 'publicadorId', 'publisherId', 'codigo'],
   nome: ['nome', 'name', 'publicador', 'publisher', 'nomeCompleto'],
@@ -27,7 +37,8 @@ const ALIASES = {
   estudos: ['estudos', 'estudosBiblicos', 'estudos_biblicos', 'bibleStudies', 'studies'],
   auxiliar: ['auxiliar', 'pioneiroAuxiliar', 'pioneiro_auxiliar', 'auxiliaryPioneer'],
   horas: ['horas', 'hours'],
-  obs: ['obs', 'observacoes', 'observações', 'observacao', 'comentarios', 'remarks', 'notes'],
+  obs: ['obs', 'observacoes', 'observações', 'observacao', 'observação', 'comentarios', 'remarks', 'notes'],
+  enviado: ['enviado em', 'enviadoEm', 'enviado', 'data de envio', 'carimbo de data/hora', 'timestamp'],
 };
 
 function pegar(o: Record<string, unknown>, chaves: string[]): unknown {
@@ -70,7 +81,54 @@ export function normalizarNome(nome: string): string {
     .trim();
 }
 
-export function analisarJson(texto: string): LinhaImportada[] {
+/** Mês anterior à data de envio ("01/11/2026, 15:19" → "2026-10"). */
+export function mesDoEnvio(v: unknown): string | null {
+  let d: Date | null = null;
+  if (v instanceof Date && !isNaN(+v)) d = v;
+  else if (typeof v === 'string') {
+    const br = v.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    const iso = v.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (br) d = new Date(+br[3], +br[2] - 1, +br[1]);
+    else if (iso) d = new Date(+iso[1], +iso[2] - 1, +iso[3]);
+  }
+  return d ? mesRelatorioAtual(d) : null;
+}
+
+function deObjetos(lista: unknown[], mesGeral: string | null, ignorarSemNome: boolean): LinhaLida[] {
+  const out: LinhaLida[] = [];
+  lista.forEach((item, i) => {
+    if (!item || typeof item !== 'object') throw new Error(`Registro ${i + 1} inválido.`);
+    const o = item as Record<string, unknown>;
+    const mes = normalizarMes(pegar(o, ALIASES.mes), pegar(o, ALIASES.ano)) ?? mesGeral;
+    const nome = String(pegar(o, ALIASES.nome) ?? '').trim().replace(/\s+/g, ' ');
+    if (!nome) {
+      if (ignorarSemNome) return;
+      throw new Error(`Registro ${i + 1}: nome do publicador não informado.`);
+    }
+    const horas = numero(pegar(o, ALIASES.horas));
+    const estudos = numero(pegar(o, ALIASES.estudos));
+    const p = pegar(o, ALIASES.participou);
+    const id = pegar(o, ALIASES.id);
+    out.push({
+      mes,
+      mesEnvio: mesDoEnvio(pegar(o, ALIASES.enviado)),
+      id: id === undefined || id === '' ? undefined : String(id),
+      nome,
+      relatorio: {
+        // Se o campo não vier, considera que participou quem relatou horas ou estudos.
+        participou: p === undefined || p === '' ? (horas ?? 0) > 0 || (estudos ?? 0) > 0 : bool(p),
+        estudos,
+        auxiliar: bool(pegar(o, ALIASES.auxiliar)),
+        horas,
+        obs: String(pegar(o, ALIASES.obs) ?? '').trim(),
+      },
+    });
+  });
+  return out;
+}
+
+/** Lê o JSON sem exigir o mês (a prévia pede o mês quando faltar). */
+export function lerJsonRelatorio(texto: string): LinhaLida[] {
   let dados: unknown;
   try {
     dados = JSON.parse(texto);
@@ -88,31 +146,64 @@ export function analisarJson(texto: string): LinhaImportada[] {
     lista = arr;
   } else throw new Error('Formato de JSON não reconhecido.');
 
-  return lista.map((item, i) => {
-    if (!item || typeof item !== 'object') throw new Error(`Registro ${i + 1} inválido.`);
-    const o = item as Record<string, unknown>;
-    const mes = normalizarMes(pegar(o, ALIASES.mes), pegar(o, ALIASES.ano)) ?? mesGeral;
-    const nome = String(pegar(o, ALIASES.nome) ?? '').trim();
-    if (!mes) throw new Error(`Registro ${i + 1} (${nome || 'sem nome'}): mês não informado.`);
-    if (!nome) throw new Error(`Registro ${i + 1}: nome do publicador não informado.`);
-    const horas = numero(pegar(o, ALIASES.horas));
-    const estudos = numero(pegar(o, ALIASES.estudos));
-    const p = pegar(o, ALIASES.participou);
-    const id = pegar(o, ALIASES.id);
-    return {
-      mes,
-      id: id === undefined ? undefined : String(id),
-      nome,
-      relatorio: {
-        // Se o campo não vier, considera que participou quem relatou horas ou estudos.
-        participou: p === undefined ? (horas ?? 0) > 0 || (estudos ?? 0) > 0 : bool(p),
-        estudos,
-        auxiliar: bool(pegar(o, ALIASES.auxiliar)),
-        horas,
-        obs: String(pegar(o, ALIASES.obs) ?? ''),
-      },
-    };
+  return deObjetos(lista, mesGeral, false);
+}
+
+export function analisarJson(texto: string): LinhaImportada[] {
+  return lerJsonRelatorio(texto).map((l, i) => {
+    if (!l.mes) throw new Error(`Registro ${i + 1} (${l.nome}): mês não informado.`);
+    return { id: l.id, nome: l.nome, relatorio: l.relatorio, mes: l.mes };
   });
+}
+
+/** Planilha .xlsx/.xls/.ods/.csv com cabeçalho na primeira linha. */
+export async function lerPlanilhaRelatorio(arquivo: ArrayBuffer): Promise<LinhaLida[]> {
+  const XLSX = await import('xlsx');
+  const b = new Uint8Array(arquivo);
+  const binario = (b[0] === 0x50 && b[1] === 0x4b) || (b[0] === 0xd0 && b[1] === 0xcf);
+  if (!binario) {
+    let texto: string;
+    try {
+      texto = new TextDecoder('utf-8', { fatal: true }).decode(b);
+    } catch {
+      texto = new TextDecoder('windows-1252').decode(b);
+    }
+    return lerColadoRelatorio(texto.replace(/^\uFEFF/, ''));
+  }
+  const wb = XLSX.read(b, { cellDates: true });
+  const aba = wb.Sheets[wb.SheetNames[0]];
+  return deObjetos(XLSX.utils.sheet_to_json<Record<string, unknown>>(aba, { defval: '', raw: true }), null, true);
+}
+
+/** Texto copiado de uma planilha (tabulação) ou CSV (; ou ,), com o cabeçalho na primeira linha. */
+export function lerColadoRelatorio(texto: string): LinhaLida[] {
+  const linhas = texto.replace(/\r/g, '').split('\n').filter((l) => l.trim());
+  if (linhas.length < 2) return [];
+  const sep = linhas[0].includes('\t') ? '\t' : linhas[0].includes(';') ? ';' : ',';
+  const celulas = (l: string) => (sep === ',' ? l.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/) : l.split(sep)).map((c) => c.trim().replace(/^"(.*)"$/, '$1'));
+  const cab = celulas(linhas[0]);
+  const objs = linhas.slice(1).map((l) => {
+    const cel = celulas(l);
+    return Object.fromEntries(cab.map((c, i) => [c, cel[i] ?? '']));
+  });
+  return deObjetos(objs, null, true);
+}
+
+/** Mês mais comum entre as datas de envio; sem datas, o mês anterior ao atual. */
+export function mesSugerido(linhas: LinhaLida[]): string {
+  const conta = new Map<string, number>();
+  for (const l of linhas) if (l.mesEnvio) conta.set(l.mesEnvio, (conta.get(l.mesEnvio) ?? 0) + 1);
+  return [...conta].sort((a, b) => b[1] - a[1])[0]?.[0] ?? mesRelatorioAtual();
+}
+
+/** Completa o mês de quem não trouxe mês no arquivo. */
+export function comMes(linhas: LinhaLida[], mes: string): LinhaImportada[] {
+  return linhas.map((l) => ({ id: l.id, nome: l.nome, relatorio: l.relatorio, mes: l.mes ?? mes }));
+}
+
+/** Pioneiro regular/especial, missionário ou auxiliar permanente: relatam horas normalmente. */
+export function relataHoras(p: Publicador): boolean {
+  return p.auxiliarPermanente || p.privilegios.some((x) => x === 'pioneiro_regular' || x === 'pioneiro_especial' || x === 'missionario');
 }
 
 /** Inativo que participou no mês mais recente do seu histórico volta a ser ativo. */
@@ -172,6 +263,13 @@ export function aplicar(db: Db, previa: Previa, arquivo: string, criarNaoEncontr
     if (!p) continue;
     if (reativaria(p, item.linha)) p.inativo = false;
     p.relatorios[item.linha.mes] = item.linha.relatorio;
+    // Marcar/desmarcar PA na prévia também vale como designação do mês.
+    if (!p.auxiliarPermanente) {
+      const mes = item.linha.mes;
+      const tem = p.auxiliarMeses.includes(mes);
+      if (item.linha.relatorio.auxiliar && !tem) p.auxiliarMeses = [...p.auxiliarMeses, mes].sort();
+      if (!item.linha.relatorio.auxiliar && tem) p.auxiliarMeses = p.auxiliarMeses.filter((m) => m !== mes);
+    }
     n++;
   }
   const data = new Date().toISOString();

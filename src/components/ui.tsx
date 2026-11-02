@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, type InputHTMLAttributes, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import type { Publicador } from '../domain/types';
 import { PRIVILEGIOS } from '../domain/types';
@@ -41,6 +41,30 @@ export function Modal({
         )}
       </div>
     </div>
+  );
+}
+
+const CORES_TOGGLE = {
+  indigo: 'checked:bg-indigo-600 focus-visible:outline-indigo-500',
+  rose: 'checked:bg-rose-600 focus-visible:outline-rose-500',
+};
+
+/** Interruptor liga/desliga. Funciona como um checkbox (mesmas props), só que com cara de toggle. */
+export function Toggle({
+  className = '',
+  cor = 'indigo',
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & { cor?: keyof typeof CORES_TOGGLE }) {
+  return (
+    <span className={`relative inline-flex h-5 w-9 shrink-0 items-center align-middle ${className}`}>
+      <input
+        type="checkbox"
+        role="switch"
+        className={`peer absolute inset-0 m-0 cursor-pointer appearance-none rounded-full bg-slate-300 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-600 ${CORES_TOGGLE[cor]}`}
+        {...props}
+      />
+      <span className="pointer-events-none absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
+    </span>
   );
 }
 

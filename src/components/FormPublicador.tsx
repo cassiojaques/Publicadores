@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { novoPublicador, PRIVILEGIOS, type Publicador } from '../domain/types';
 import { moverPublicador, useStore } from '../store/store';
-import { Campo, Modal } from './ui';
+import { Campo, Modal, Toggle } from './ui';
 import { CampoData } from './CampoData';
 
 /** Cria (publicador ausente) ou edita um publicador. */
@@ -83,9 +83,7 @@ export function FormPublicador({
           <span className="label flex items-center justify-between">
             Data de batismo
             <label className="flex items-center gap-1.5 font-normal">
-              <input
-                type="checkbox"
-                className="accent-indigo-600"
+              <Toggle
                 checked={!p.batizado}
                 onChange={(e) => setP((x) => ({ ...x, batizado: !e.target.checked, batismo: e.target.checked ? '' : x.batismo }))}
               />
@@ -147,9 +145,7 @@ export function FormPublicador({
                     marcado ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10' : 'border-slate-300 dark:border-slate-700'
                   }`}
                 >
-                  <input
-                    type="checkbox"
-                    className="accent-indigo-600"
+                  <Toggle
                     checked={marcado}
                     onChange={() =>
                       set('privilegios', marcado ? p.privilegios.filter((y) => y !== x.id) : [...p.privilegios, x.id])
@@ -162,9 +158,7 @@ export function FormPublicador({
           </div>
         </div>
         <label className="flex items-start gap-2 text-sm sm:col-span-2">
-          <input
-            type="checkbox"
-            className="mt-0.5 accent-indigo-600"
+          <Toggle className="mt-0.5"
             checked={p.auxiliarPermanente}
             onChange={(e) => set('auxiliarPermanente', e.target.checked)}
           />
@@ -203,7 +197,7 @@ export function FormPublicador({
           />
         </Campo>
         <label className="flex items-start gap-2 text-sm sm:col-span-2">
-          <input type="checkbox" className="mt-0.5 accent-rose-600" checked={p.inativo} onChange={(e) => set('inativo', e.target.checked)} />
+          <Toggle className="mt-0.5" cor="rose" checked={p.inativo} onChange={(e) => set('inativo', e.target.checked)} />
           <span>
             <span className="font-medium">Inativo</span>
             <span className="block text-xs text-slate-500">

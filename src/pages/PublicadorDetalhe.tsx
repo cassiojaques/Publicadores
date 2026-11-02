@@ -5,7 +5,7 @@ import {
   anosServicoComDados, formatarData, MESES_ANO_SERVICO, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico,
 } from '../domain/serviceYear';
 import { auxiliarNoMes, PRIVILEGIOS, type RelatorioMes } from '../domain/types';
-import { Avatar, BadgeSituacao, Confirmar } from '../components/ui';
+import { Avatar, BadgeSituacao, Confirmar, Toggle } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
 import { gerarS21Bytes } from '../pdf/s21';
 import { salvarArquivoGerado } from '../storage/storage';
@@ -205,11 +205,11 @@ export function PublicadorDetalhe({ id }: { id: string }) {
                       </span>
                     </td>
                     <td className="text-center">
-                      <input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={!!r?.participou} onChange={(e) => editarMes(mes, 'participou', e.target.checked)} aria-label={`Participou em ${MESES_ANO_SERVICO[i]}`} />
+                      <Toggle checked={!!r?.participou} onChange={(e) => editarMes(mes, 'participou', e.target.checked)} aria-label={`Participou em ${MESES_ANO_SERVICO[i]}`} />
                     </td>
                     <td>{numInput(mes, 'estudos', r?.estudos)}</td>
                     <td className="text-center">
-                      <input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={r ? r.auxiliar : auxiliarNoMes(p, mes)} onChange={(e) => atualizar((d) => definirAuxiliar(d, id, mes, e.target.checked))} aria-label={`Pioneiro auxiliar em ${MESES_ANO_SERVICO[i]}`} />
+                      <Toggle checked={r ? r.auxiliar : auxiliarNoMes(p, mes)} onChange={(e) => atualizar((d) => definirAuxiliar(d, id, mes, e.target.checked))} aria-label={`Pioneiro auxiliar em ${MESES_ANO_SERVICO[i]}`} />
                     </td>
                     <td>{numInput(mes, 'horas', r?.horas)}</td>
                     <td>

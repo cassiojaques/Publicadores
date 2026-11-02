@@ -6,9 +6,15 @@ import { Download, GripVertical, Loader2, MoreHorizontal, Pencil, Plus, Trash2, 
 import { mesesComDados, moverPublicador, removerGrupo, useStore } from '../store/store';
 import { situacao } from '../domain/serviceYear';
 import { novoId, type Grupo, type Publicador } from '../domain/types';
-import { BadgesPrivilegio, Confirmar, Modal, Vazio } from '../components/ui';
+import { BadgesPrivilegio, Confirmar, Modal, Toggle, Vazio } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
-import { gerarPdfGrupos } from '../pdf/grupos';
+import { gerarPdfGrupos, type FiltroSituacao } from '../pdf/grupos';
+
+const OPCOES_SIT: { v: FiltroSituacao; t: string }[] = [
+  { v: 'todos', t: 'Todos' },
+  { v: 'ativo', t: 'Ativos' },
+  { v: 'inativo', t: 'Inativos' },
+];
 import { salvarArquivoGerado } from '../storage/storage';
 
 const SEM_GRUPO = '__sem__';
@@ -165,17 +171,34 @@ export function Grupos() {
   const [novoEm, setNovoEm] = useState<string | null | undefined>(undefined);
   const [destaque, setDestaque] = useState('');
   const [gerando, setGerando] = useState(false);
-  const [soAtivos, setSoAtivos] = useState(() => {
+  const [filtroSit, setFiltroSit] = useState<FiltroSituacao>(() => {
     try {
-      return localStorage.getItem('publicadores.grupos.soAtivos') === '1';
+      const v = localStorage.getItem('publicadores.grupos.situacao');
+      if (v === 'ativo' || v === 'inativo') return v;
+      return localStorage.getItem('publicadores.grupos.soAtivos') === '1' ? 'ativo' : 'todos';
     } catch {
-      return false;
+      return 'todos';
     }
   });
-  const mudarSoAtivos = (v: boolean) => {
-    setSoAtivos(v);
+  const mudarFiltroSit = (v: FiltroSituacao) => {
+    setFiltroSit(v);
     try {
-      localStorage.setItem('publicadores.grupos.soAtivos', v ? '1' : '0');
+      localStorage.setItem('publicadores.grupos.situacao', v);
+    } catch {
+      /* ignore */
+    }
+  };
+  const [pdfSiglas, setPdfSiglas] = useState(() => {
+    try {
+      return localStorage.getItem('publicadores.grupos.pdfSiglas') !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const mudarPdfSiglas = (v: boolean) => {
+    setPdfSiglas(v);
+    try {
+      localStorage.setItem('publicadores.grupos.pdfSiglas', v ? '1' : '0');
     } catch {
       /* ignore */
     }
@@ -186,12 +209,12 @@ export function Grupos() {
   const porGrupo = useMemo(() => {
     const m = new Map<string, Publicador[]>();
     for (const p of db.publicadores) {
-      if (p.arquivado || (soAtivos && situacao(p, meses) === 'inativo')) continue;
+      if (p.arquivado || (filtroSit !== 'todos' && situacao(p, meses) !== filtroSit)) continue;
       const k = p.grupoId ?? SEM_GRUPO;
       m.set(k, [...(m.get(k) ?? []), p]);
     }
     return m;
-  }, [db.publicadores, soAtivos, meses]);
+  }, [db.publicadores, filtroSit, meses]);
 
   function soltar(e: DragEndEvent) {
     setArrastado(null);
@@ -217,7 +240,7 @@ export function Grupos() {
   async function exportarPdf() {
     setGerando(true);
     try {
-      if (await salvarArquivoGerado('Grupos de Campo.pdf', await gerarPdfGrupos(db, { soAtivos }), 'application/pdf')) toast('PDF dos grupos exportado.');
+      if (await salvarArquivoGerado('Grupos de Campo.pdf', await gerarPdfGrupos(db, { situacao: filtroSit, siglas: pdfSiglas }), 'application/pdf')) toast('PDF dos grupos exportado.');
     } catch (e) {
       toast(`Erro ao gerar PDF: ${(e as Error).message}`, 'erro');
     } finally {
@@ -236,9 +259,26 @@ export function Grupos() {
           <p className="text-sm text-slate-500">Arraste os publicadores entre os grupos para mudá-los.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 px-1 text-sm text-slate-600 dark:text-slate-400" title="Esconde os inativos aqui e no PDF">
-            <input type="checkbox" className="accent-indigo-600" checked={soAtivos} onChange={(e) => mudarSoAtivos(e.target.checked)} />
-            Apenas ativos
+          <div className="flex rounded-full border border-slate-300 p-0.5 dark:border-slate-700" role="group" aria-label="Situação" title="Filtra aqui e no PDF">
+            {OPCOES_SIT.map((o) => (
+              <button
+                key={o.v}
+                type="button"
+                aria-pressed={filtroSit === o.v}
+                onClick={() => mudarFiltroSit(o.v)}
+                className={`rounded-full px-3 py-0.5 text-xs font-medium transition ${
+                  filtroSit === o.v
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+                    : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-300 dark:hover:bg-slate-800'
+                }`}
+              >
+                {o.t}
+              </button>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 px-1 text-sm text-slate-600 dark:text-slate-400" title="Mostra Ancião, Servo, Pioneiro etc. ao lado dos nomes no PDF">
+            <Toggle checked={pdfSiglas} onChange={(e) => mudarPdfSiglas(e.target.checked)} />
+            Designações no PDF
           </label>
           <input className="input w-48" placeholder="Destacar nome…" value={destaque} onChange={(e) => setDestaque(e.target.value)} />
           <button className="btn-outline" onClick={exportarPdf} disabled={gerando || db.grupos.length === 0}>

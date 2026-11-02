@@ -6,7 +6,7 @@ import {
 import { mesRelatorioAtual, nomeMes } from '../domain/serviceYear';
 import { statusDoMes, textoFaltantes, totaisDoMes, type LinhaMes, type StatusMes } from '../domain/relatorios';
 import { auxiliarNoMes, type RelatorioMes } from '../domain/types';
-import { Avatar, BadgesPrivilegio, Confirmar, Modal, Vazio } from '../components/ui';
+import { Avatar, BadgesPrivilegio, Confirmar, Modal, Toggle, Vazio } from '../components/ui';
 
 const ROTULO_STATUS: Record<StatusMes, { t: string; c: string }> = {
   relatou: { t: 'Relatou', c: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' },
@@ -378,12 +378,12 @@ function Linha({
         <span className={`badge ${ROTULO_STATUS[status].c}`}>{ROTULO_STATUS[status].t}</span>
       </td>
       <td className="td text-center">
-        <input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={!!r?.participou}
+        <Toggle checked={!!r?.participou}
           onChange={(e) => onEditar('participou', e.target.checked)} aria-label={`Participou: ${p.nome}`} />
       </td>
       <td className="td text-center">{num('estudos')}</td>
       <td className="td text-center">
-        <input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={r ? r.auxiliar : auxiliarNoMes(p, mes)}
+        <Toggle checked={r ? r.auxiliar : auxiliarNoMes(p, mes)}
           onChange={(e) => onAuxiliar(e.target.checked)} aria-label={`Pioneiro auxiliar: ${p.nome}`} />
       </td>
       <td className="td text-center">{num('horas')}</td>

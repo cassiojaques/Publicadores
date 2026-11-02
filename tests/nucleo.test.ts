@@ -231,18 +231,51 @@ describe('ano de serviço e inativos', () => {
   });
 });
 
-describe('cartões em lote', () => {
-  it('gera um zip com um PDF por publicador', async () => {
-    const { gerarS21Zip } = await import('../src/pdf/s21');
+describe('extrair dados', () => {
+  it('gera o zip com as pastas do arquivo e os PDFs da raiz', async () => {
+    const { gerarExtracao } = await import('../src/pdf/extracao');
     const orig = globalThis.fetch;
     globalThis.fetch = (async () => new Response(readFileSync('src/assets/S-21_T.pdf'))) as typeof fetch;
     try {
-      const ps = [novoPublicador({ nome: 'Ana' }), novoPublicador({ nome: 'Ana' }), novoPublicador({ nome: 'Bia/X' })];
-      const nomes = Object.keys(unzipSync(await gerarS21Zip(ps, 2026))).sort();
-      expect(nomes).toEqual(['S-21 2026 - Ana (2).pdf', 'S-21 2026 - Ana.pdf', 'S-21 2026 - BiaX.pdf']);
+      const db = dbVazio('Central');
+      const sup = novoPublicador({ nome: 'Carlos Lima', grupoId: 'g1', privilegios: ['anciao'] });
+      db.publicadores.push(sup);
+      db.grupos.push({ id: 'g1', nome: 'Grupo 1', superintendenteId: sup.id, ajudanteId: null });
+      db.publicadores.push(
+        novoPublicador({ nome: 'Ana', grupoId: 'g1', anotacoes: 'Contato de emergência: (51) 9999-0000 (mãe) 😀' }),
+        novoPublicador({ nome: 'Ana', grupoId: 'g1' }),
+        novoPublicador({ nome: 'Bia/X', grupoId: 'g1', privilegios: ['pioneiro_regular'] }),
+        novoPublicador({ nome: 'Caio', grupoId: 'g1', inativo: true }),
+        novoPublicador({ nome: 'Dora', arquivado: true }),
+      );
+      db.publicadores[3].relatorios['2025-09'] = { participou: true, estudos: 2, auxiliar: false, horas: 50, obs: '' };
+      const zip = unzipSync(await gerarExtracao(db, 2026));
+      expect(Object.keys(zip).sort()).toEqual([
+        'Ativos (4)/Outros publicadores (3)/Grupo 1 - Carlos (3)/Ana (2).pdf',
+        'Ativos (4)/Outros publicadores (3)/Grupo 1 - Carlos (3)/Ana.pdf',
+        'Ativos (4)/Outros publicadores (3)/Grupo 1 - Carlos (3)/Carlos Lima.pdf',
+        'Ativos (4)/P. regulares, p. especiais e mis. em campo (1)/BiaX (Grupo 1).pdf',
+        'Grupos de Saída de Campo.pdf',
+        'Inativos (1)/Caio (Grupo 1).pdf',
+        'Lista de Emergência.pdf',
+        'Total (Pioneiros Reg. Espe. e Missionários em campo).pdf',
+        'Total (Pioneiros auxiliares).pdf',
+        'Total (Publicadores).pdf',
+      ]);
+      const total = (await PDFDocument.load(zip['Total (Pioneiros Reg. Espe. e Missionários em campo).pdf'])).getForm();
+      expect(total.getTextField('900_1_Text_SanSerif').getText()).toBe('Pioneiros regulares, especiais e missionários em campo');
+      expect(total.getTextField('902_20_Text_C_SanSerif').getText()).toBe('2');
+      expect(total.getTextField('904_20_S21_Value').getText()).toBe('50');
+      expect(total.getTextField('905_20_Text_SanSerif').getText()).toBe('Número de relatórios: 1');
+      expect(total.getTextField('904_21_S21_Value').getText() ?? '').toBe('');
     } finally {
       globalThis.fetch = orig;
     }
+  });
+  it('lê o contato de emergência das anotações', async () => {
+    const { dadosEmergencia } = await import('../src/pdf/emergencia');
+    const p = novoPublicador({ anotacoes: 'Contato de emergência: (51) 1234 (Pai)\nEndereço de emergência: Rua A, 1' });
+    expect(dadosEmergencia(p)).toEqual({ contato: '(51) 1234 (Pai)', endereco: 'Rua A, 1' });
   });
 });
 

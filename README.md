@@ -11,8 +11,9 @@ Deixe o arquivo numa pasta do OneDrive/Google Drive para ter backup na nuvem.
 - Painel com indicadores e pesquisa global (`Ctrl+K`).
 - Publicadores: cadastro, filtros por grupo/designação/situação, arquivar quem se mudou.
 - Grupos de campo em quadro: arraste publicadores entre grupos, defina superintendente e ajudante.
-- Cartão S-21 em tela (editável) e exportação em PDF preenchendo o formulário oficial `S-21_T.pdf`;
-  exportação de todos os cartões num único PDF.
+- Cartão S-21 em tela (editável) e exportação em PDF preenchendo o formulário oficial `S-21_T.pdf`.
+- **Extrair dados**: um .zip com os cartões S-21 em pastas (Ativos — pioneiros e outros publicadores por grupo — e
+  Inativos) e, na raiz, os cartões de totais, os grupos de campo (ativos) e a lista de emergência por grupo.
 - PDF com a lista de todos os grupos.
 - Importação do relatório de campo (JSON) com prévia antes de gravar.
 - Importação de publicadores a partir de planilha (.xlsx/.csv), criando os grupos automaticamente.

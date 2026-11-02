@@ -6,7 +6,7 @@ import { situacao, type Situacao } from '../domain/serviceYear';
 import { PRIVILEGIOS, type Privilegio, type Publicador } from '../domain/types';
 import { Toggle, Vazio } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
-import { GerarCartoes } from '../components/GerarCartoes';
+import { ExtrairDados } from '../components/ExtrairDados';
 import { salvarArquivoGerado } from '../storage/storage';
 
 const CORES_PRIV: Record<Privilegio | 'pap', string> = {
@@ -110,7 +110,7 @@ export function Publicadores() {
   const [sexos, setSexos] = useState<('M' | 'F')[]>([]);
   const [arquivados, setArquivados] = useState(false);
   const [novo, setNovo] = useState(false);
-  const [gerarCartoes, setGerarCartoes] = useState(false);
+  const [extrair, setExtrair] = useState(false);
 
   const meses = useMemo(() => mesesComDados(db), [db]);
   const situacoes = useMemo(
@@ -171,8 +171,8 @@ export function Publicadores() {
           <button className="btn-outline" onClick={copiarNomes} disabled={lista.length === 0} title="Copia os nomes exibidos, um por linha, para colar numa planilha">
             <ClipboardCopy size={16} /> Copiar nomes
           </button>
-          <button className="btn-outline" onClick={() => setGerarCartoes(true)} disabled={db.publicadores.length === 0} title="Gera o S-21 de todos os publicadores de uma vez">
-            <FileStack size={16} /> Gerar todos os cartões
+          <button className="btn-outline" onClick={() => setExtrair(true)} disabled={db.publicadores.length === 0} title="Gera um .zip com os cartões S-21 em pastas, os totais, os grupos e a lista de emergência">
+            <FileStack size={16} /> Extrair dados
           </button>
           <button className="btn-primary" onClick={() => setNovo(true)}>
             <Plus size={16} /> Novo publicador
@@ -385,7 +385,7 @@ export function Publicadores() {
         )}
       </div>
 
-      <GerarCartoes aberto={gerarCartoes} onFechar={() => setGerarCartoes(false)} exibidos={lista} />
+      <ExtrairDados aberto={extrair} onFechar={() => setExtrair(false)} />
       <FormPublicador
         aberto={novo}
         grupoInicial={grupos.length === 1 && grupos[0] !== 'sem' ? grupos[0] : null}

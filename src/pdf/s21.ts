@@ -115,37 +115,34 @@ export async function gerarS21Bytes(p: Publicador, anoServico: number) {
   return (await gerarS21(await carregarModelo(), p, anoServico)).save();
 }
 
-type Progresso = (feitos: number, total: number) => void;
-
-/** Um único PDF com o cartão de todos os publicadores (formulários achatados). */
-export async function gerarS21Lote(publicadores: Publicador[], anoServico: number, progresso?: Progresso) {
-  const modelo = await carregarModelo();
-  const saida = await PDFDocument.create();
-  saida.setTitle(`Registros de Publicador — ${anoServico}`);
-  for (const [i, p] of publicadores.entries()) {
-    const doc = await gerarS21(modelo, p, anoServico, { achatar: true });
-    const [pagina] = await saida.copyPages(doc, [0]);
-    saida.addPage(pagina);
-    progresso?.(i + 1, publicadores.length);
-  }
-  return saida.save();
-}
-
-export function nomeArquivoS21(p: Publicador, anoServico: number) {
-  return `S-21 ${anoServico} - ${p.nome.replace(/[\\/:*?"<>|]/g, '').trim()}.pdf`;
-}
-
-/** Um .zip com um PDF (editável) por publicador. */
-export async function gerarS21Zip(publicadores: Publicador[], anoServico: number, progresso?: Progresso) {
-  const { zipSync } = await import('fflate');
-  const modelo = await carregarModelo();
-  const arquivos: Record<string, Uint8Array> = {};
-  for (const [i, p] of publicadores.entries()) {
-    let nome = nomeArquivoS21(p, anoServico);
-    for (let n = 2; nome in arquivos; n++) nome = nomeArquivoS21(p, anoServico).replace(/\.pdf$/, ` (${n}).pdf`);
-    arquivos[nome] = await (await gerarS21(modelo, p, anoServico)).save();
-    progresso?.(i + 1, publicadores.length);
-  }
-  // PDFs já são comprimidos; nível 0 deixa o zip rápido.
-  return zipSync(arquivos, { level: 0 });
+/**
+ * Cartão S-21 com os totais da congregação num ano de serviço (Publicadores, Pioneiros auxiliares
+ * ou Pioneiros regulares…): estudos e horas somados por mês e o número de relatórios nas observações.
+ * `porMes` segue a ordem setembro..agosto; null = mês sem relatório.
+ */
+export async function gerarS21Totais(
+  modelo: Uint8Array,
+  nome: string,
+  anoServico: number,
+  porMes: ({ relatorios: number; estudos: number; horas: number } | null)[],
+): Promise<PDFDocument> {
+  const doc = await PDFDocument.load(modelo);
+  registrarCampos(doc);
+  const form = doc.getForm();
+  const texto = (campo: string, valor: string) => form.getTextField(campo).setText(valor);
+  texto(CAMPO.nome, nome);
+  texto(CAMPO.anoServico, String(anoServico));
+  let horas = 0;
+  porMes.forEach((t, i) => {
+    if (!t) return;
+    const l = 20 + i;
+    texto(CAMPO.estudos(l), String(t.estudos));
+    texto(CAMPO.horas(l), num(t.horas));
+    texto(CAMPO.obs(l), `Número de relatórios: ${t.relatorios}`);
+    horas += t.horas;
+  });
+  texto(CAMPO.horas(LINHA_TOTAL), num(horas));
+  form.updateFieldAppearances(await doc.embedFont(StandardFonts.Helvetica));
+  doc.setTitle(`S-21 — ${nome} — ${anoServico}`);
+  return doc;
 }

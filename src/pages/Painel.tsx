@@ -1,30 +1,26 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
-  BookOpen,
-  CalendarRange,
-  Clock,
   Droplets,
   FileInput,
   Flag,
   FileSpreadsheet,
-  PieChart,
   Plus,
-  TrendingUp,
   UserCheck,
   Users,
   UsersRound,
+  UserX,
 } from 'lucide-react';
 import { mesesComDados, useStore } from '../store/store';
 import type { Publicador } from '../domain/types';
-import { anoServicoDe, MESES_ANO_SERVICO, mesesDoAnoServico, mesRelatorioAtual, nomeMes, situacao, totalComCreditos, ultimosMeses } from '../domain/serviceYear';
-import { statusDoMes } from '../domain/relatorios';
+import { anoServicoDe, MESES_ANO_SERVICO, mesesDoAnoServico, mesRelatorioAtual, nomeMes, situacao, totalComCreditos } from '../domain/serviceYear';
 import { Avatar, BadgeSituacao, Toggle } from '../components/ui';
 
 const MES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const mesCurto = (chave: string) => MES_CURTO[Number(chave.slice(5, 7)) - 1];
 const META_ANO_PIONEIRO = 600;
 const META_MES_PIONEIRO = 50;
+const MESES_SEM_PARTICIPAR = 3;
 const pct = (parte: number, total: number) => (total ? Math.round((parte / total) * 100) : 0);
 
 function Indicador({ icone, rotulo, valor, detalhe, cor }: { icone: ReactNode; rotulo: string; valor: ReactNode; detalhe?: string; cor: string }) {
@@ -54,27 +50,60 @@ function Cartao({ titulo, icone, subtitulo, className = '', children }: { titulo
   );
 }
 
-/** Barra horizontal de proporção com rótulo e valor. */
-function Barra({ rotulo, valor, total, cor = 'bg-indigo-500', detalhe }: { rotulo: ReactNode; valor: number; total: number; cor?: string; detalhe?: string }) {
+/** Publicadores há 3 meses ou mais seguidos sem participar no ministério, com uma barra por mês sem relatar. */
+function SemParticipar({ ate, lista }: { ate: string | null; lista: { p: Publicador; meses: number }[] }) {
+  const { db, navegar } = useStore();
+  const ESCALA = 12;
+  const faixas = [
+    { rotulo: '3 a 5 meses', cor: 'bg-amber-400', n: lista.filter((x) => x.meses < 6).length },
+    { rotulo: '6 a 11 meses', cor: 'bg-orange-500', n: lista.filter((x) => x.meses >= 6 && x.meses < 12).length },
+    { rotulo: '12 meses ou mais', cor: 'bg-rose-500', n: lista.filter((x) => x.meses >= 12).length },
+  ];
+  const corDe = (m: number) => (m >= 12 ? 'bg-rose-500' : m >= 6 ? 'bg-orange-500' : 'bg-amber-400');
   return (
-    <div>
-      <div className="flex justify-between gap-2 text-sm">
-        <span className="truncate">{rotulo}</span>
-        <span className="shrink-0 tabular-nums text-slate-500">{detalhe ?? `${valor} / ${total}`}</span>
-      </div>
-      <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-        <div className={`h-full rounded-full ${cor}`} style={{ width: `${pct(valor, total)}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function Linha({ icone, rotulo, valor }: { icone?: ReactNode; rotulo: string; valor: ReactNode }) {
-  return (
-    <div className="flex justify-between gap-2">
-      <dt className="flex items-center gap-2 text-slate-500">{icone} {rotulo}</dt>
-      <dd className="font-semibold tabular-nums">{valor}</dd>
-    </div>
+    <Cartao
+      titulo={`Sem participar há ${MESES_SEM_PARTICIPAR} meses ou mais`}
+      icone={<UserX size={18} />}
+      subtitulo={ate ? `${lista.length} ${lista.length === 1 ? 'publicador' : 'publicadores'} · meses seguidos até ${nomeMes(ate)}` : 'Sem relatórios ainda'}
+    >
+      {lista.length === 0 ? (
+        <p className="text-sm text-slate-500">Todos participaram em pelo menos um dos últimos {MESES_SEM_PARTICIPAR} meses.</p>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+            {faixas.map((f) => (
+              <span key={f.rotulo} className="flex items-center gap-1.5">
+                <span className={`h-2 w-3 rounded-full ${f.cor}`} /> {f.rotulo} <b className="tabular-nums text-slate-700 dark:text-slate-200">{f.n}</b>
+              </span>
+            ))}
+          </div>
+          <div className="max-h-96 space-y-1.5 overflow-y-auto pr-1">
+            {lista.map((x) => (
+              <button
+                key={x.p.id}
+                className="group flex w-full items-center gap-3 text-left text-sm"
+                title={`${x.p.nome}: ${x.meses} meses seguidos sem participar`}
+                onClick={() => navegar({ nome: 'publicador', id: x.p.id })}
+              >
+                <span className="w-32 shrink-0 truncate group-hover:underline sm:w-52">{x.p.nome}</span>
+                <span className="hidden w-16 shrink-0 truncate text-xs text-slate-400 sm:inline">{db.grupos.find((g) => g.id === x.p.grupoId)?.nome ?? 'Sem grupo'}</span>
+                <div className="relative h-4 flex-1 rounded-full bg-slate-100 dark:bg-slate-800">
+                  {/* Uma divisão por mês. */}
+                  {Array.from({ length: ESCALA - 1 }, (_, i) => (
+                    <span key={i} className="absolute inset-y-1 w-px bg-slate-300/70 dark:bg-slate-600/60" style={{ left: `${((i + 1) / ESCALA) * 100}%` }} />
+                  ))}
+                  <div className={`relative h-full rounded-full ${corDe(x.meses)}`} style={{ width: `${(Math.min(x.meses, ESCALA) / ESCALA) * 100}%` }} />
+                </div>
+                <span className="w-20 shrink-0 whitespace-nowrap text-right tabular-nums">
+                  <span className="font-semibold">{x.meses > ESCALA ? `${ESCALA}+` : x.meses}</span>
+                  <span className="text-slate-400"> {x.meses === 1 ? 'mês' : 'meses'}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </Cartao>
   );
 }
 
@@ -218,78 +247,14 @@ export function Painel() {
     const doMes = ultimoMes ? ativos.map((p) => p.relatorios[ultimoMes]).filter(Boolean) : [];
     return {
       pioneiros: ativos.filter((p) => p.privilegios.includes('pioneiro_regular') || p.privilegios.includes('pioneiro_especial')).length,
-      anciaos: ativos.filter((p) => p.privilegios.includes('anciao')).length,
-      servos: ativos.filter((p) => p.privilegios.includes('servo_ministerial')).length,
       atencao: sit.filter((x) => x.s === 'inativo'),
-      participaram: doMes.filter((r) => r!.participou).length,
-      estudos: doMes.reduce((s, r) => s + (r!.estudos ?? 0), 0),
-      horas: doMes.reduce((s, r) => s + (r!.horas ?? 0), 0),
       auxiliares: doMes.filter((r) => r!.auxiliar).length,
       semGrupo: ativos.filter((p) => !p.grupoId).length,
     };
   }, [ativos, meses, ultimoMes]);
 
-  // Participação mês a mês nos últimos 12 meses.
-  const historico = useMemo(
-    () =>
-      ultimosMeses(12, ultimoMes ?? mesEsperado).map((k) => ({
-        k,
-        temDados: meses.has(k),
-        participaram: ativos.filter((p) => p.relatorios[k]?.participou).length,
-        estudos: ativos.reduce((s, p) => s + (p.relatorios[k]?.estudos ?? 0), 0),
-      })),
-    [ativos, meses, ultimoMes, mesEsperado],
-  );
-  const maxHist = Math.max(1, ...historico.map((h) => h.participaram));
-  const comDados = historico.filter((h) => h.temDados);
-  const mediaPart = comDados.length ? Math.round(comDados.reduce((s, h) => s + h.participaram, 0) / comDados.length) : 0;
-
-  // Entrega do último relatório por grupo de campo.
-  const porGrupo = useMemo(() => {
-    if (!ultimoMes) return [];
-    const linhas = statusDoMes(db, ultimoMes, meses);
-    const grupos = [...db.grupos.map((g) => ({ id: g.id as string | null, nome: g.nome })), { id: null, nome: 'Sem grupo' }];
-    return grupos
-      .map((g) => {
-        const doGrupo = linhas.filter((l) => l.p.grupoId === g.id && l.status !== 'inativo');
-        return { ...g, relatou: doGrupo.filter((l) => l.status === 'relatou').length, total: doGrupo.length };
-      })
-      .filter((g) => g.total > 0);
-  }, [db, meses, ultimoMes]);
-  const faltam = porGrupo.reduce((s, g) => s + g.total - g.relatou, 0);
-
-  const composicao = useMemo(
-    () => ({
-      irmaos: ativos.filter((p) => p.sexo === 'M').length,
-      irmas: ativos.filter((p) => p.sexo === 'F').length,
-      batizados: ativos.filter((p) => p.batizado).length,
-      naoBatizados: ativos.filter((p) => !p.batizado).length,
-      ungidos: ativos.filter((p) => p.esperanca === 'ungido').length,
-      auxPermanentes: ativos.filter((p) => p.auxiliarPermanente).length,
-    }),
-    [ativos],
-  );
-
-  // Totais do ano de serviço do último relatório.
+  // Ano de serviço do último relatório.
   const anoServico = anoServicoDe(ultimoMes ?? mesEsperado);
-  const ano = useMemo(() => {
-    const ks = mesesDoAnoServico(anoServico).filter((k) => meses.has(k));
-    let horas = 0;
-    let estudos = 0;
-    let relatorios = 0;
-    let auxiliares = 0;
-    for (const p of ativos)
-      for (const k of ks) {
-        const r = p.relatorios[k];
-        if (!r?.participou) continue;
-        relatorios++;
-        horas += r.horas ?? 0;
-        estudos += r.estudos ?? 0;
-        if (r.auxiliar) auxiliares++;
-      }
-    return { meses: ks.length, horas, relatorios, auxiliares, mediaEstudos: ks.length ? Math.round(estudos / ks.length) : 0 };
-  }, [ativos, meses, anoServico]);
-
   // Pioneiros regulares: meta de 600 horas no ano de serviço (50 por mês).
   const pioneiros = useMemo(() => {
     // Sem relatório importado, a meta conta até o mês que está sendo relatado.
@@ -304,6 +269,20 @@ export function Painel() {
     return { decorridos, lista };
   }, [ativos, ultimoMes, mesEsperado, anoServico]);
 
+  // Meses seguidos sem participar, contados para trás a partir do último mês que já tem relatos
+  // (um mês recém-aberto, ainda sem ninguém relatado, não conta como falta).
+  const semParticipar = useMemo(() => {
+    const comRelatos = [...meses].filter((k) => k <= mesEsperado && ativos.some((p) => p.relatorios[k]?.participou)).sort().reverse();
+    const lista = ativos
+      .map((p) => {
+        const i = comRelatos.findIndex((k) => p.relatorios[k]?.participou);
+        return { p, meses: i === -1 ? comRelatos.length : i };
+      })
+      .filter((x) => x.meses >= MESES_SEM_PARTICIPAR)
+      .sort((a, b) => b.meses - a.meses || a.p.nome.localeCompare(b.p.nome, 'pt-BR'));
+    return { ate: comRelatos[0] ?? null, lista };
+  }, [ativos, meses, mesEsperado]);
+
   // Aniversários de batismo no mês corrente.
   const hoje = new Date();
   const anoHoje = hoje.getFullYear();
@@ -316,6 +295,8 @@ export function Painel() {
         .sort((a, b) => a.dia - b.dia || a.p.nome.localeCompare(b.p.nome, 'pt-BR')),
     [ativos, mesHoje, anoHoje],
   );
+
+  const primeiroAno = aniversarios.filter((a) => a.anos === 1);
 
   if (db.publicadores.length === 0)
     return (
@@ -350,8 +331,32 @@ export function Painel() {
         )}
       </div>
 
+      {primeiroAno.length > 0 && (
+        <div className="card flex flex-wrap items-center gap-x-4 gap-y-2 border-sky-200 bg-gradient-to-r from-sky-50 to-indigo-50 p-4 dark:border-sky-500/30 dark:from-sky-500/10 dark:to-indigo-500/5">
+          <span className="rounded-full bg-sky-100 p-2 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300">
+            <Droplets size={20} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">
+              {primeiroAno.length === 1 ? 'Completa' : 'Completam'} 1 ano de batismo em {nomeMes(`${anoHoje}-${mesHoje}`).split(' ')[0].toLowerCase()}
+            </p>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {primeiroAno.map((a) => (
+                <button
+                  key={a.p.id}
+                  className="rounded-full bg-white px-3 py-1 text-sm shadow-sm ring-1 ring-sky-200 hover:ring-sky-400 dark:bg-slate-900 dark:ring-sky-500/30"
+                  onClick={() => navegar({ nome: 'publicador', id: a.p.id })}
+                >
+                  {a.p.nome} <span className="text-slate-500">· dia {a.dia}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Indicador icone={<Users size={18} />} cor="bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15" rotulo="Publicadores" valor={ativos.length} detalhe={`${stats.anciaos} anciãos · ${stats.servos} servos`} />
+        <Indicador icone={<Users size={18} />} cor="bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15" rotulo="Publicadores ativos" valor={ativos.length - stats.atencao.length} detalhe={`Total ${ativos.length} · ${stats.atencao.length} inativos`} />
         <Indicador icone={<UsersRound size={18} />} cor="bg-sky-100 text-sky-600 dark:bg-sky-500/15" rotulo="Grupos de campo" valor={db.grupos.length} detalhe={stats.semGrupo ? `${stats.semGrupo} sem grupo` : 'Todos em grupos'} />
         <Indicador icone={<UserCheck size={18} />} cor="bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15" rotulo="Pioneiros" valor={stats.pioneiros} detalhe={ultimoMes ? `+ ${stats.auxiliares} auxiliares em ${mesCurto(ultimoMes)}` : undefined} />
         <Indicador icone={<AlertTriangle size={18} />} cor="bg-amber-100 text-amber-600 dark:bg-amber-500/15" rotulo="Inativos" valor={stats.atencao.length} detalhe={`${pct(stats.atencao.length, ativos.length)}% dos publicadores`} />
@@ -359,89 +364,7 @@ export function Painel() {
 
       <MetaPioneiros anoServico={anoServico} {...pioneiros} />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Cartao
-          titulo="Último relatório"
-          icone={<FileInput size={18} />}
-          subtitulo={
-            ultimoMes && (
-              <button className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => navegar({ nome: 'relatorios', mes: ultimoMes })}>
-                {nomeMes(ultimoMes)} · ver relatórios
-              </button>
-            )
-          }
-        >
-          {ultimoMes ? (
-            <dl className="space-y-3 text-sm">
-              <Linha icone={<UserCheck size={16} />} rotulo="Participaram" valor={`${stats.participaram} / ${ativos.length}`} />
-              <Linha icone={<BookOpen size={16} />} rotulo="Estudos bíblicos" valor={stats.estudos} />
-              <Linha icone={<Users size={16} />} rotulo="Pioneiros auxiliares" valor={stats.auxiliares} />
-              <Linha icone={<Clock size={16} />} rotulo="Horas (pioneiros)" valor={stats.horas} />
-            </dl>
-          ) : (
-            <p className="text-sm text-slate-500">Nenhum relatório importado ainda.</p>
-          )}
-        </Cartao>
-
-        <Cartao
-          titulo="Participação nos últimos 12 meses"
-          icone={<TrendingUp size={18} />}
-          subtitulo={comDados.length ? `Média de ${mediaPart} publicadores por mês` : 'Sem relatórios no período'}
-          className="lg:col-span-2"
-        >
-          <div className="flex h-40 items-end gap-1.5 sm:gap-2">
-            {historico.map((h) => (
-              <div key={h.k} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`${nomeMes(h.k)}: ${h.temDados ? `${h.participaram} participaram · ${h.estudos} estudos` : 'sem relatório'}`}>
-                <span className="text-[10px] tabular-nums text-slate-500">{h.temDados ? h.participaram : ''}</span>
-                <div
-                  className={`w-full rounded-t-md ${h.temDados ? (h.k === ultimoMes ? 'bg-indigo-600' : 'bg-indigo-300 dark:bg-indigo-500/50') : 'bg-slate-100 dark:bg-slate-800'}`}
-                  style={{ height: h.temDados ? `${Math.max(4, (h.participaram / maxHist) * 100)}%` : '4px' }}
-                />
-                <span className="text-[10px] text-slate-500">{mesCurto(h.k)}</span>
-              </div>
-            ))}
-          </div>
-        </Cartao>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Cartao titulo="Entrega por grupo" icone={<UsersRound size={18} />} subtitulo={ultimoMes ? `${nomeMes(ultimoMes)} · ${faltam ? `faltam ${faltam}` : 'todos entregaram'}` : undefined}>
-          {porGrupo.length ? (
-            <div className="space-y-3">
-              {porGrupo.map((g) => (
-                <Barra key={g.id ?? 'sem'} rotulo={g.nome} valor={g.relatou} total={g.total} cor={g.relatou === g.total ? 'bg-emerald-500' : 'bg-indigo-500'} />
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-slate-500">Nenhum relatório importado ainda.</p>
-          )}
-        </Cartao>
-
-        <Cartao titulo="Composição" icone={<PieChart size={18} />} subtitulo={`${ativos.length} publicadores`}>
-          <div className="space-y-3">
-            <Barra rotulo="Irmãos" valor={composicao.irmaos} total={ativos.length} cor="bg-sky-500" detalhe={`${composicao.irmaos} · ${pct(composicao.irmaos, ativos.length)}%`} />
-            <Barra rotulo="Irmãs" valor={composicao.irmas} total={ativos.length} cor="bg-rose-400" detalhe={`${composicao.irmas} · ${pct(composicao.irmas, ativos.length)}%`} />
-            <Barra rotulo="Batizados" valor={composicao.batizados} total={ativos.length} cor="bg-emerald-500" detalhe={`${composicao.batizados} · ${pct(composicao.batizados, ativos.length)}%`} />
-            <dl className="space-y-2 pt-1 text-sm">
-              <Linha rotulo="Não batizados" valor={composicao.naoBatizados} />
-              <Linha rotulo="Pioneiros auxiliares permanentes" valor={composicao.auxPermanentes} />
-              {composicao.ungidos > 0 && <Linha rotulo="Ungidos" valor={composicao.ungidos} />}
-            </dl>
-          </div>
-        </Cartao>
-
-        <Cartao titulo={`Ano de serviço ${anoServico}`} icone={<CalendarRange size={18} />} subtitulo={`${ano.meses} de 12 meses com relatório`}>
-          <div className="mb-4 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-            <div className="h-full rounded-full bg-violet-500" style={{ width: `${pct(ano.meses, 12)}%` }} />
-          </div>
-          <dl className="space-y-3 text-sm">
-            <Linha icone={<FileInput size={16} />} rotulo="Relatórios entregues" valor={ano.relatorios} />
-            <Linha icone={<BookOpen size={16} />} rotulo="Estudos por mês (média)" valor={ano.mediaEstudos} />
-            <Linha icone={<Users size={16} />} rotulo="Meses de pioneiro auxiliar" valor={ano.auxiliares} />
-            <Linha icone={<Clock size={16} />} rotulo="Horas (pioneiros)" valor={ano.horas.toLocaleString('pt-BR')} />
-          </dl>
-        </Cartao>
-      </div>
+      <SemParticipar {...semParticipar} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Cartao titulo="Aniversários de batismo" icone={<Droplets size={18} />} subtitulo={nomeMes(`${anoHoje}-${mesHoje}`).split(' ')[0]}>

@@ -209,8 +209,9 @@ export function Painel() {
   const { db, navegar } = useStore();
   const ativos = useMemo(() => db.publicadores.filter((p) => !p.arquivado), [db.publicadores]);
   const meses = useMemo(() => mesesComDados(db), [db]);
-  const ultimoMes = db.importacoes.at(-1)?.mes ?? null;
   const mesEsperado = mesRelatorioAtual();
+  // Meses futuros (lançados por engano no cartão) não contam como último relatório.
+  const ultimoMes = db.importacoes.filter((i) => i.mes <= mesEsperado).at(-1)?.mes ?? null;
 
   const stats = useMemo(() => {
     const sit = ativos.map((p) => ({ p, s: situacao(p, meses) }));

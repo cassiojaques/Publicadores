@@ -90,9 +90,9 @@ function Coluna({
         isOver ? 'ring-2 ring-indigo-500' : ''
       } ${grupo ? '' : 'border-dashed'}`}
     >
-      <div className="flex items-center gap-1 border-b border-slate-200 px-3 py-2 dark:border-slate-800">
-        <h3 className="flex-1 truncate font-semibold">{grupo?.nome ?? 'Sem grupo'}</h3>
-        <span className="badge bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">{membros.length}</span>
+      <div className={`flex items-center gap-1 rounded-t-xl border-b px-3 py-2 dark:border-slate-800 ${grupo ? 'border-indigo-200/70 bg-gradient-to-r from-indigo-100 to-violet-100/70 dark:from-indigo-500/10 dark:to-violet-500/10' : 'border-slate-200 bg-slate-50 dark:bg-slate-800/40'}`}>
+        <h3 className="flex-1 truncate font-semibold text-indigo-950 dark:text-indigo-100">{grupo?.nome ?? 'Sem grupo'}</h3>
+        <span className="badge bg-white text-indigo-700 ring-1 ring-indigo-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-0">{membros.length}</span>
         <button className="btn-ghost p-1" onClick={onAdicionar} title="Novo publicador neste grupo" aria-label="Novo publicador neste grupo">
           <UserPlus size={16} />
         </button>
@@ -141,7 +141,7 @@ function Coluna({
         </div>
       )}
 
-      <div className="flex min-h-[48px] flex-1 flex-col gap-1 p-2">
+      <div className="flex min-h-[48px] flex-1 flex-col gap-1 rounded-b-xl bg-slate-50/60 p-2 dark:bg-transparent">
         {ordenados.map((p) => {
           const funcao = grupo?.superintendenteId === p.id ? 'S' : grupo?.ajudanteId === p.id ? 'A' : undefined;
           const casa = !destaque || p.nome.toLowerCase().includes(destaque.toLowerCase());

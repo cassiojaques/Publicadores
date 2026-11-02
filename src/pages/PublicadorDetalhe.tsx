@@ -175,7 +175,7 @@ export function PublicadorDetalhe({ id }: { id: string }) {
 
         <div className="overflow-x-auto">
           <table className="w-full border-t border-slate-200 text-sm dark:border-slate-800">
-            <thead className="bg-slate-50 dark:bg-slate-900/60">
+            <thead>
               <tr className="divide-x divide-slate-200 dark:divide-slate-800">
                 <th className="th w-32">Ano de serviço {ano}</th>
                 <th className="th w-24 text-center">Participou</th>

@@ -40,12 +40,12 @@ function StatusSalvar() {
   const { salvando, conflito, arm } = useStore();
   if (conflito)
     return (
-      <span className="flex items-center gap-1 text-xs text-amber-600">
+      <span className="flex items-center gap-1 text-xs text-amber-400">
         <AlertTriangle size={14} /> Conflito
       </span>
     );
   return (
-    <span className="hidden items-center gap-1 text-xs text-slate-400 md:flex" title={arm?.descricao}>
+    <span className="flex items-center gap-1 text-xs text-indigo-300/80 dark:text-slate-400" title={arm?.descricao}>
       {salvando ? <CloudUpload size={14} className="animate-pulse" /> : <Check size={14} />}
       {salvando ? 'Salvando…' : 'Salvo'}
     </span>
@@ -60,14 +60,14 @@ export function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-4 dark:border-slate-800 dark:bg-slate-900 md:flex">
+      <aside className="hidden w-60 shrink-0 flex-col bg-gradient-to-b from-indigo-950 via-indigo-900 to-indigo-950 px-3 py-4 text-indigo-100 dark:border-r dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 md:flex">
         <div className="mb-6 flex items-center gap-2 px-2">
-          <span className="rounded-lg bg-indigo-600 p-1.5 text-white">
+          <span className="rounded-lg bg-gradient-to-br from-indigo-400 to-violet-500 p-1.5 text-white shadow-lg shadow-indigo-950/40">
             <Users size={18} />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">Publicadores</p>
-            <p className="truncate text-xs text-slate-500">{db.congregacao.nome || 'Congregação'}</p>
+            <p className="truncate text-sm font-semibold text-white">Publicadores</p>
+            <p className="truncate text-xs text-indigo-300/80 dark:text-slate-400">{db.congregacao.nome || 'Congregação'}</p>
           </div>
         </div>
         <nav className="space-y-0.5">
@@ -77,8 +77,8 @@ export function Layout({ children }: { children: ReactNode }) {
               onClick={() => navegar({ nome: n.p } as Pagina)}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                 ativo === n.p
-                  ? 'bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300'
-                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                  ? 'bg-white/15 font-medium text-white shadow-inner dark:bg-indigo-500/15 dark:text-indigo-200'
+                  : 'text-indigo-200/80 hover:bg-white/10 hover:text-white dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'
               }`}
             >
               {n.icone}
@@ -86,12 +86,26 @@ export function Layout({ children }: { children: ReactNode }) {
             </button>
           ))}
         </nav>
+
+        <div className="mt-auto space-y-3 border-t border-white/10 px-2 pt-3 dark:border-slate-800">
+          <BotaoInstalarTopo />
+          <div className="flex items-center gap-1">
+            <StatusSalvar />
+            <button className="ml-auto rounded-lg p-2 text-indigo-200/80 hover:bg-white/10 hover:text-white dark:text-slate-400" onClick={() => setEscuro(!escuro)} title="Alternar tema">
+              {escuro ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <button className="rounded-lg p-2 text-indigo-200/80 hover:bg-white/10 hover:text-white dark:text-slate-400" onClick={bloquear} title="Bloquear (pede o PIN na próxima vez)">
+              <Lock size={18} />
+            </button>
+          </div>
+        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-slate-200 bg-white/80 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80 md:px-6">
+        {/* No celular a barra lateral some; este topo fica só para navegar. */}
+        <header className="flex items-center gap-3 border-b border-slate-300/40 px-4 py-2.5 dark:border-slate-800 md:hidden">
           <select
-            className="input w-auto md:hidden"
+            className="input w-auto"
             value={ativo}
             onChange={(e) => navegar({ nome: e.target.value } as Pagina)}
             aria-label="Navegação"
@@ -103,8 +117,6 @@ export function Layout({ children }: { children: ReactNode }) {
             ))}
           </select>
           <div className="ml-auto flex items-center gap-1">
-            <BotaoInstalarTopo />
-            <StatusSalvar />
             <button className="btn-ghost p-2" onClick={() => setEscuro(!escuro)} title="Alternar tema">
               {escuro ? <Sun size={18} /> : <Moon size={18} />}
             </button>

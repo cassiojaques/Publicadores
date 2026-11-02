@@ -188,7 +188,7 @@ export function Publicadores() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/60">
+              <thead className="border-b border-indigo-100 dark:border-slate-800">
                 <tr>
                   <th className="th min-w-[200px]">Nome</th>
                   <th className="th">Sexo</th>
@@ -200,12 +200,12 @@ export function Publicadores() {
                   <th className="th w-8" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 [&>tr:nth-child(even)]:bg-slate-50/70 dark:[&>tr:nth-child(even)]:bg-slate-800/20">
                 {lista.map((p) => {
                   const s = situacoes.get(p.id)!;
                   const auto = s === 'inativo' && !p.inativo;
                   return (
-                    <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <tr key={p.id} className="hover:!bg-indigo-50/60 dark:hover:!bg-slate-800/40">
                       <td className="px-1 py-0.5">
                         <CelulaTexto
                           aria-label="Nome"

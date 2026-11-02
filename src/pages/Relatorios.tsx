@@ -283,7 +283,7 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-900/60">
+              <thead>
                 <tr>
                   <th className="th">Nome</th>
                   <th className="th">Grupo</th>

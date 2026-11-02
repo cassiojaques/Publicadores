@@ -6,7 +6,9 @@ import { Avatar, BadgeSituacao } from '../components/ui';
 
 function Indicador({ icone, rotulo, valor, detalhe, cor }: { icone: ReactNode; rotulo: string; valor: ReactNode; detalhe?: string; cor: string }) {
   return (
-    <div className="card p-4">
+    <div className="card relative overflow-hidden p-4">
+      {/* Faixa colorida no topo, na cor do ícone. */}
+      <span className={`absolute inset-x-0 top-0 h-1 bg-current opacity-70 ${cor.split(' ').find((c) => c.startsWith('text-'))}`} />
       <div className="flex items-center gap-3">
         <span className={`rounded-lg p-2 ${cor}`}>{icone}</span>
         <span className="text-sm text-slate-500">{rotulo}</span>

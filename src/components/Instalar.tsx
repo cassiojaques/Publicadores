@@ -46,13 +46,13 @@ export function BannerInstalar() {
   );
 }
 
-/** Botão compacto para o topo do app, só quando o navegador permite instalar. */
+/** Botão compacto para a barra lateral, só quando o navegador permite instalar. */
 export function BotaoInstalarTopo() {
   const { podeInstalar } = useInstalacao();
   if (!podeInstalar) return null;
   return (
-    <button className="btn-primary py-1.5" onClick={instalar} title="Instalar o aplicativo neste computador">
-      <Download size={16} /> <span className="hidden sm:inline">Instalar app</span>
+    <button className="btn-primary w-full py-1.5" onClick={instalar} title="Instalar o aplicativo neste computador">
+      <Download size={16} /> Instalar app
     </button>
   );
 }

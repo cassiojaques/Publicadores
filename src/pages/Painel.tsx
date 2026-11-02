@@ -20,7 +20,9 @@ const MES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set'
 const mesCurto = (chave: string) => MES_CURTO[Number(chave.slice(5, 7)) - 1];
 const META_ANO_PIONEIRO = 600;
 const META_MES_PIONEIRO = 50;
-const MESES_SEM_PARTICIPAR = 3;
+const MESES_SEM_PARTICIPAR = 2;
+/** Com 6 meses seguidos sem participar o publicador fica inativo (ver `situacao`). */
+const MESES_INATIVO = 6;
 const pct = (parte: number, total: number) => (total ? Math.round((parte / total) * 100) : 0);
 
 function Indicador({ icone, rotulo, valor, detalhe, cor, onClick }: { icone: ReactNode; rotulo: string; valor: ReactNode; detalhe?: string; cor: string; onClick: () => void }) {
@@ -50,16 +52,13 @@ function Cartao({ titulo, icone, subtitulo, className = '', children }: { titulo
   );
 }
 
-/** Publicadores há 3 meses ou mais seguidos sem participar no ministério, com uma barra por mês sem relatar. */
+/**
+ * Ativos há 2 meses ou mais seguidos sem participar no ministério. A barra vai até 6 meses:
+ * com 6 o publicador passa a inativo e sai deste quadro.
+ */
 function SemParticipar({ ate, lista }: { ate: string | null; lista: { p: Publicador; meses: number }[] }) {
   const { db, navegar } = useStore();
-  const ESCALA = 12;
-  const faixas = [
-    { rotulo: '3 a 5 meses', cor: 'bg-amber-400', n: lista.filter((x) => x.meses < 6).length },
-    { rotulo: '6 a 11 meses', cor: 'bg-orange-500', n: lista.filter((x) => x.meses >= 6 && x.meses < 12).length },
-    { rotulo: '12 meses ou mais', cor: 'bg-rose-500', n: lista.filter((x) => x.meses >= 12).length },
-  ];
-  const corDe = (m: number) => (m >= 12 ? 'bg-rose-500' : m >= 6 ? 'bg-orange-500' : 'bg-amber-400');
+  const corDe = (m: number) => (m >= MESES_INATIVO - 1 ? 'bg-rose-500' : m >= MESES_INATIVO - 2 ? 'bg-orange-500' : 'bg-amber-400');
   return (
     <Cartao
       titulo="Irregulares"
@@ -70,32 +69,25 @@ function SemParticipar({ ate, lista }: { ate: string | null; lista: { p: Publica
         <p className="text-sm text-slate-500">Todos os ativos participaram em pelo menos um dos últimos {MESES_SEM_PARTICIPAR} meses.</p>
       ) : (
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-            {faixas.map((f) => (
-              <span key={f.rotulo} className="flex items-center gap-1.5">
-                <span className={`h-2 w-3 rounded-full ${f.cor}`} /> {f.rotulo} <b className="tabular-nums text-slate-700 dark:text-slate-200">{f.n}</b>
-              </span>
-            ))}
-          </div>
-          <div className="max-h-96 space-y-1.5 overflow-y-auto pr-1">
+          <div className="max-h-96 space-y-1.5 overflow-y-auto overflow-x-hidden pr-1">
             {lista.map((x) => (
               <button
                 key={x.p.id}
                 className="group flex w-full items-center gap-3 text-left text-sm"
-                title={`${x.p.nome}: ${x.meses} meses seguidos sem participar`}
+                title={`${x.p.nome}: ${x.meses} meses seguidos sem participar · com ${MESES_INATIVO} fica inativo`}
                 onClick={() => navegar({ nome: 'publicador', id: x.p.id })}
               >
-                <span className="w-32 shrink-0 truncate group-hover:underline sm:w-52">{x.p.nome}</span>
-                <span className="hidden w-16 shrink-0 truncate text-xs text-slate-400 sm:inline">{db.grupos.find((g) => g.id === x.p.grupoId)?.nome ?? 'Sem grupo'}</span>
-                <div className="relative h-4 flex-1 rounded-full bg-slate-100 dark:bg-slate-800">
-                  {/* Uma divisão por mês. */}
-                  {Array.from({ length: ESCALA - 1 }, (_, i) => (
-                    <span key={i} className="absolute inset-y-1 w-px bg-slate-300/70 dark:bg-slate-600/60" style={{ left: `${((i + 1) / ESCALA) * 100}%` }} />
+                <span className="w-28 shrink-0 truncate group-hover:underline sm:w-40">{x.p.nome}</span>
+                <span className="hidden w-14 shrink-0 truncate text-xs text-slate-400 xl:inline">{db.grupos.find((g) => g.id === x.p.grupoId)?.nome ?? 'Sem grupo'}</span>
+                <div className="relative h-4 min-w-[3rem] flex-1 rounded-full bg-slate-100 dark:bg-slate-800">
+                  {/* Uma divisão por mês; o fim da barra é onde fica inativo. */}
+                  {Array.from({ length: MESES_INATIVO - 1 }, (_, i) => (
+                    <span key={i} className="absolute inset-y-1 w-px bg-slate-300/70 dark:bg-slate-600/60" style={{ left: `${((i + 1) / MESES_INATIVO) * 100}%` }} />
                   ))}
-                  <div className={`relative h-full rounded-full ${corDe(x.meses)}`} style={{ width: `${(Math.min(x.meses, ESCALA) / ESCALA) * 100}%` }} />
+                  <div className={`relative h-full rounded-full ${corDe(x.meses)}`} style={{ width: `${(Math.min(x.meses, MESES_INATIVO) / MESES_INATIVO) * 100}%` }} />
                 </div>
-                <span className="w-20 shrink-0 whitespace-nowrap text-right tabular-nums">
-                  <span className="font-semibold">{x.meses > ESCALA ? `${ESCALA}+` : x.meses}</span>
+                <span className="w-16 shrink-0 whitespace-nowrap text-right tabular-nums">
+                  <span className="font-semibold">{x.meses}</span>
                   <span className="text-slate-400"> {x.meses === 1 ? 'mês' : 'meses'}</span>
                 </span>
               </button>

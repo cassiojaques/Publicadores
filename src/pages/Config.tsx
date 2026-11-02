@@ -5,6 +5,7 @@ import { exportarPacote, salvarArquivoGerado } from '../storage/storage';
 import { senhaValida } from './Acesso';
 import { Campo, Confirmar } from '../components/ui';
 import type { Db } from '../domain/types';
+import { textoVersao } from '../versao';
 
 export const CHAVE_BLOQUEIO = 'publicadores.bloqueioMin';
 export function minutosBloqueio(): number {
@@ -134,6 +135,12 @@ export function Config() {
           <button className="btn-outline" onClick={() => inputJson.current?.click()}><Upload size={16} /> Restaurar de JSON</button>
           <input ref={inputJson} type="file" accept=".json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) carregarJson(f); e.target.value = ''; }} />
         </div>
+      </Secao>
+
+      <Secao titulo="Sobre">
+        <p className="text-sm text-slate-500">
+          Versão <span className="font-mono text-slate-700 dark:text-slate-300">{textoVersao}</span>
+        </p>
       </Secao>
 
       <Confirmar

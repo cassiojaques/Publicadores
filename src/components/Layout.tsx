@@ -5,6 +5,7 @@ import {
 import { useStore, type Pagina } from '../store/store';
 import { ReabrirComSenha } from './ReabrirComSenha';
 import { BotaoInstalarTopo } from './Instalar';
+import { textoVersao } from '../versao';
 
 const NAV: { p: Pagina['nome']; rotulo: string; icone: ReactNode }[] = [
   { p: 'painel', rotulo: 'Painel', icone: <LayoutDashboard size={18} /> },
@@ -129,6 +130,11 @@ export function Layout({ children }: { children: ReactNode }) {
               <Lock size={18} />
             </button>
           </div>
+          {!recolhido && (
+            <p className="text-[11px] tabular-nums text-indigo-300/60 dark:text-slate-500" title="Versão e data/hora em que foi gerada">
+              {textoVersao}
+            </p>
+          )}
         </div>
       </aside>
 

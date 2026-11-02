@@ -1,10 +1,26 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'node:child_process';
+import pkg from './package.json';
+
+/** Commit atual, para saber exatamente qual versão está rodando. */
+function commit(): string {
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim();
+  } catch {
+    return '';
+  }
+}
 
 export default defineConfig({
   // Caminhos relativos: o app funciona em qualquer subpasta (ex.: GitHub Pages) e no Tauri.
   base: './',
+  define: {
+    __VERSAO__: JSON.stringify(pkg.version),
+    __COMMIT__: JSON.stringify(commit()),
+    __COMPILADO_EM__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     VitePWA({

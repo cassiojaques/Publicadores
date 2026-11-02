@@ -1,8 +1,34 @@
 import { useEffect, type InputHTMLAttributes, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { Publicador } from '../domain/types';
 import { PRIVILEGIOS } from '../domain/types';
 import type { Situacao } from '../domain/serviceYear';
+
+/**
+ * Troca o ano de serviço com setas: ◀ volta para o ano anterior, ▶ avança.
+ * `anos` traz os anos disponíveis, em qualquer ordem.
+ */
+export function SeletorAnoServico({ ano, anos, onChange }: { ano: number; anos: number[]; onChange: (ano: number) => void }) {
+  const ordenados = [...anos].sort((a, b) => a - b);
+  const i = ordenados.indexOf(ano);
+  const anterior = i > 0 ? ordenados[i - 1] : null;
+  const proximo = i >= 0 && i < ordenados.length - 1 ? ordenados[i + 1] : null;
+  const seta = 'rounded-md p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent dark:text-slate-300 dark:hover:bg-slate-800';
+  return (
+    <div className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900" role="group" aria-label="Ano de serviço">
+      <button type="button" className={seta} disabled={anterior === null} onClick={() => anterior !== null && onChange(anterior)} title={anterior ? `Ano de serviço ${anterior}` : undefined} aria-label="Ano anterior">
+        <ChevronLeft size={18} />
+      </button>
+      <span className="min-w-[9.5rem] px-1 text-center leading-tight">
+        <span className="block text-sm font-semibold tabular-nums">Ano de serviço {ano}</span>
+        <span className="block text-[11px] text-slate-500">set/{ano - 1} – ago/{ano}</span>
+      </span>
+      <button type="button" className={seta} disabled={proximo === null} onClick={() => proximo !== null && onChange(proximo)} title={proximo ? `Ano de serviço ${proximo}` : undefined} aria-label="Próximo ano">
+        <ChevronRight size={18} />
+      </button>
+    </div>
+  );
+}
 
 export function Modal({
   aberto,

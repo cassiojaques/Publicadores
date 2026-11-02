@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { FileArchive, FileText, Folder, Loader2 } from 'lucide-react';
 import { useStore } from '../store/store';
-import { anoServicoAtual, anoServicoDe, rotuloAnoServico } from '../domain/serviceYear';
+import { anoServicoAtual, anoServicoDe } from '../domain/serviceYear';
 import { caminhosDosCartoes, gerarExtracao } from '../pdf/extracao';
 import { salvarArquivoGerado } from '../storage/storage';
-import { Modal } from './ui';
+import { Modal, SeletorAnoServico } from './ui';
 
 /**
  * Extrai o arquivo da congregação num .zip: os cartões S-21 do ano de serviço em pastas
@@ -74,16 +74,10 @@ export function ExtrairDados({ aberto, onFechar }: { aberto: boolean; onFechar: 
       }
     >
       <div className="space-y-4">
-        <label className="block">
-          <span className="label">Ano de serviço</span>
-          <select className="input" value={ano} onChange={(e) => setAno(Number(e.target.value))}>
-            {anos.map((a) => (
-              <option key={a} value={a}>
-                {rotuloAnoServico(a)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="flex items-center justify-between gap-3">
+          <span className="label mb-0">Ano de serviço</span>
+          <SeletorAnoServico ano={ano} anos={anos} onChange={setAno} />
+        </div>
         <div className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700">
           <p className="mb-2 font-medium">Conteúdo do .zip</p>
           <ul className="space-y-1">

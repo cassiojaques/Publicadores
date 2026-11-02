@@ -3,10 +3,10 @@ import { Archive, ArchiveRestore, ArrowLeft, Download, Loader2, Pencil, Trash2, 
 import { definirAuxiliar, definirRelatorio, excluirRelatorio, mesesComDados, useStore } from '../store/store';
 import {
   anosServicoComDados, creditosAprovados, formatarData, LIMITE_HORAS_COM_CREDITO, MESES_ANO_SERVICO, mesesDoAnoServico,
-  rotuloAnoServico, situacao, totaisAnoServico, totalComCreditos,
+  situacao, totaisAnoServico, totalComCreditos,
 } from '../domain/serviceYear';
 import { auxiliarNoMes, PRIVILEGIOS, type RelatorioMes } from '../domain/types';
-import { Avatar, BadgeSituacao, Confirmar, Toggle } from '../components/ui';
+import { Avatar, BadgeSituacao, Confirmar, SeletorAnoServico, Toggle } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
 import { gerarS21Bytes } from '../pdf/s21';
 import { salvarArquivoGerado } from '../storage/storage';
@@ -176,13 +176,7 @@ export function PublicadorDetalhe({ id }: { id: string }) {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3 dark:border-slate-800">
           <h2 className="font-semibold">Registro de Publicador de Congregação</h2>
           <div className="flex items-center gap-2">
-            <select className="input w-auto" value={ano} onChange={(e) => setAno(Number(e.target.value))} aria-label="Ano de serviço">
-              {anos.map((a) => (
-                <option key={a} value={a}>
-                  {rotuloAnoServico(a)}
-                </option>
-              ))}
-            </select>
+            <SeletorAnoServico ano={ano} anos={anos} onChange={setAno} />
             <button className="btn-primary" onClick={exportar} disabled={gerando}>
               {gerando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
               PDF

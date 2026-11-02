@@ -47,18 +47,24 @@ export function totaisDoMes(linhas: LinhaMes[]) {
   return t;
 }
 
-/** Nomes de quem falta, separados por grupo — para colar numa mensagem ou planilha. */
-export function textoFaltantes(db: Db, linhas: LinhaMes[]): string {
+/** Quem falta, por grupo (na ordem dos grupos; "Sem grupo" por último). Grupos sem ninguém faltando ficam de fora. */
+export function faltantesPorGrupo(db: Db, linhas: LinhaMes[]): { grupo: string; nomes: string[] }[] {
   const faltam = linhas.filter((l) => l.status === 'falta');
   const grupos = [...db.grupos.map((g) => ({ id: g.id as string | null, nome: g.nome })), { id: null, nome: 'Sem grupo' }];
   return grupos
-    .map((g) => {
-      const nomes = faltam
-        .filter((l) => l.p.grupoId === g.id)
+    .map((g) => ({
+      grupo: g.nome,
+      nomes: faltam
+        .filter((l) => (l.p.grupoId ?? null) === g.id)
         .map((l) => l.p.nome)
-        .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
-      return nomes.length ? [g.nome, ...nomes].join('\n') : '';
-    })
-    .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
+    }))
+    .filter((g) => g.nomes.length > 0);
+}
+
+/** Nomes de quem falta, separados por grupo — para colar numa mensagem ou planilha. */
+export function textoFaltantes(db: Db, linhas: LinhaMes[]): string {
+  return faltantesPorGrupo(db, linhas)
+    .map((g) => [g.grupo, ...g.nomes].join('\n'))
     .join('\n\n');
 }

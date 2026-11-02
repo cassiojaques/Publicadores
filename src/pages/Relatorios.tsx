@@ -1,12 +1,17 @@
 import { useMemo, useState } from 'react';
-import { CalendarPlus, ClipboardCopy, ClipboardList, FileInput, Search, Trash2, X } from 'lucide-react';
+import { CalendarPlus, ClipboardCopy, ClipboardList, FileInput, ImageDown, Loader2, Search, Trash2, X } from 'lucide-react';
 import {
   definirAuxiliar, definirRelatorio, excluirMes, excluirRelatorio, garantirMes, mesesComDados, useStore,
 } from '../store/store';
 import { mesRelatorioAtual, nomeMes } from '../domain/serviceYear';
-import { statusDoMes, textoFaltantes, totaisDoMes, type LinhaMes, type StatusMes } from '../domain/relatorios';
+import { faltantesPorGrupo, statusDoMes, textoFaltantes, totaisDoMes, type LinhaMes, type StatusMes } from '../domain/relatorios';
 import { auxiliarNoMes, type RelatorioMes } from '../domain/types';
 import { Avatar, BadgesPrivilegio, Confirmar, Modal, Toggle, Vazio } from '../components/ui';
+import { gerarImagemFaltantes } from '../imagem/faltantes';
+import { salvarArquivoGerado } from '../storage/storage';
+
+/** Mesmas cores dos grupos no mapa. */
+const CORES_GRUPO = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#e11d48', '#8b5cf6', '#14b8a6', '#f97316', '#84cc16', '#ec4899', '#0891b2', '#a16207'];
 
 const ROTULO_STATUS: Record<StatusMes, { t: string; c: string }> = {
   relatou: { t: 'Relatou', c: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' },
@@ -210,6 +215,30 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
     }
   }
 
+  const [gerandoImagem, setGerandoImagem] = useState(false);
+  /** PNG com quem falta, por grupo. Respeita o filtro de grupo da tabela. */
+  async function exportarImagemFaltantes() {
+    setGerandoImagem(true);
+    try {
+      const doFiltro = linhas.filter((l) => grupo === 'todos' || (grupo === 'sem' ? !l.p.grupoId : l.p.grupoId === grupo));
+      const grupos = faltantesPorGrupo(db, doFiltro);
+      const total = grupos.reduce((s, g) => s + g.nomes.length, 0);
+      const bytes = await gerarImagemFaltantes(grupos, {
+        titulo: `Faltam relatar · ${nomeMes(mes)}`,
+        subtitulo: `${db.congregacao.nome || 'Congregação'} · ${total} ${total === 1 ? 'publicador' : 'publicadores'} · ${new Date().toLocaleDateString('pt-BR')}`,
+        corDoGrupo: (nome) => {
+          const i = db.grupos.findIndex((g) => g.nome === nome);
+          return i >= 0 ? CORES_GRUPO[i % CORES_GRUPO.length] : undefined;
+        },
+      });
+      if (await salvarArquivoGerado(`Faltam relatar - ${nomeMes(mes)}.png`, bytes, 'image/png')) toast('Imagem exportada.');
+    } catch (e) {
+      toast(`Erro ao gerar a imagem: ${(e as Error).message}`, 'erro');
+    } finally {
+      setGerandoImagem(false);
+    }
+  }
+
   const abas: [Filtro, string, number][] = [
     ['falta', 'Faltam', conta('falta')],
     ['relatou', 'Relataram', conta('relatou')],
@@ -232,6 +261,14 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
           <div className="flex flex-wrap gap-2">
             <button className="btn-outline" onClick={copiarFaltantes} disabled={conta('falta') === 0}>
               <ClipboardCopy size={16} /> Copiar quem falta
+            </button>
+            <button
+              className="btn-outline"
+              onClick={exportarImagemFaltantes}
+              disabled={conta('falta') === 0 || gerandoImagem}
+              title="Imagem com quem falta, separado por grupo (segue o filtro de grupo)"
+            >
+              {gerandoImagem ? <Loader2 size={16} className="animate-spin" /> : <ImageDown size={16} />} Imagem de quem falta
             </button>
             <button className="btn-ghost text-rose-600" onClick={onExcluirMes} title="Excluir o mês inteiro">
               <Trash2 size={16} /> Excluir mês

@@ -282,7 +282,7 @@ export function Grupos() {
           </label>
           <input className="input w-48" placeholder="Destacar nome…" value={destaque} onChange={(e) => setDestaque(e.target.value)} />
           <button className="btn-outline" onClick={exportarPdf} disabled={gerando || db.grupos.length === 0}>
-            {gerando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} PDF
+            {gerando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Gerar PDF
           </button>
           <button className="btn-primary" onClick={() => setNomeModal({ id: null, nome: `Grupo ${db.grupos.length + 1}` })}>
             <Plus size={16} /> Novo grupo

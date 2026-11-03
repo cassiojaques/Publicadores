@@ -54,6 +54,36 @@ interface Estado {
   toast(texto: string, tipo?: Toast['tipo']): void;
 }
 
+const CHAVE_PAGINA = 'publicadores.pagina';
+
+/** Última tela aberta, para voltar a ela ao recarregar ou reabrir o app. */
+function paginaSalva(): Pagina {
+  try {
+    const p = JSON.parse(localStorage.getItem(CHAVE_PAGINA) ?? 'null') as Pagina | null;
+    if (p && typeof p.nome === 'string') return p;
+  } catch {
+    /* sem armazenamento local ou valor inválido */
+  }
+  return { nome: 'painel' };
+}
+
+function salvarPagina(p: Pagina) {
+  // O filtro vindo do painel só vale na chegada; depois, a lista guarda os próprios filtros.
+  const { filtro: _, ...semFiltro } = p as Pagina & { filtro?: unknown };
+  try {
+    localStorage.setItem(CHAVE_PAGINA, JSON.stringify(semFiltro));
+  } catch {
+    /* sem armazenamento local */
+  }
+}
+
+/** Ao abrir os dados, volta à última tela — se ela ainda fizer sentido neste arquivo. */
+function paginaInicial(db: Db): Pagina {
+  const p = paginaSalva();
+  if (p.nome === 'publicador' && !db.publicadores.some((x) => x.id === p.id)) return { nome: 'painel' };
+  return p;
+}
+
 let timerSalvar: ReturnType<typeof setTimeout> | null = null;
 let toastSeq = 0;
 
@@ -93,7 +123,8 @@ export const useStore = create<Estado>((set, get) => ({
       const chave = await chaveLembrada(arm.descricao);
       if (!chave) throw new Error();
       const { texto } = await decifrarComChave(await arm.ler(), chave);
-      if (get().arm === arm) set({ chave, db: normalizar(JSON.parse(texto)), fase: 'aberto', pagina: { nome: 'painel' }, conflito: false });
+      const db = normalizar(JSON.parse(texto));
+      if (get().arm === arm) set({ chave, db, fase: 'aberto', pagina: paginaInicial(db), conflito: false });
     })().catch(() => {
       if (get().arm === arm) set({ fase: 'bloqueado' });
     });
@@ -113,7 +144,8 @@ export const useStore = create<Estado>((set, get) => ({
     const { texto, chave } = await decifrar(await arm.ler(), senha);
     if (lembrar === true) await lembrarChave(arm.descricao, chave);
     if (lembrar === false) await esquecerChave(arm.descricao);
-    set({ chave, db: normalizar(JSON.parse(texto)), fase: 'aberto', pagina: { nome: 'painel' }, conflito: false });
+    const db = normalizar(JSON.parse(texto));
+    set({ chave, db, fase: 'aberto', pagina: paginaInicial(db), conflito: false });
   },
 
   async bloquear() {
@@ -178,6 +210,7 @@ export const useStore = create<Estado>((set, get) => ({
   },
 
   navegar(pagina) {
+    salvarPagina(pagina);
     set({ pagina });
   },
 

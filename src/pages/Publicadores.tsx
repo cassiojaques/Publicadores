@@ -97,19 +97,51 @@ function LinhaFiltro({ rotulo, children }: { rotulo: string; children: ReactNode
   );
 }
 
+interface Filtros {
+  q: string;
+  grupos: string[];
+  desigs: FiltroDesig[];
+  sits: Situacao[];
+  sexos: ('M' | 'F')[];
+  arquivados: boolean;
+}
+const FILTROS_VAZIOS: Filtros = { q: '', grupos: [], desigs: [], sits: [], sexos: [], arquivados: false };
+const CHAVE_FILTROS = 'publicadores.filtros';
+
+/** Últimos filtros usados na lista, para mantê-los ao voltar de um cartão ou recarregar. */
+function filtrosSalvos(): Filtros {
+  try {
+    return { ...FILTROS_VAZIOS, ...JSON.parse(localStorage.getItem(CHAVE_FILTROS) ?? '{}') };
+  } catch {
+    return FILTROS_VAZIOS;
+  }
+}
+
 const selectCelula =
   'rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm outline-none hover:border-slate-300 focus:border-indigo-500 dark:hover:border-slate-700 dark:bg-transparent';
 
 export function Publicadores() {
   const { db, navegar, atualizar, toast, pagina } = useStore();
-  const filtroInicial = pagina.nome === 'publicadores' ? pagina.filtro : undefined;
-  const [q, setQ] = useState('');
+  const [inicio] = useState(() => {
+    const filtroInicial = pagina.nome === 'publicadores' ? pagina.filtro : undefined;
+    // Vindo do painel, abre só com o filtro do indicador; senão, retoma os últimos filtros.
+    return filtroInicial ? { ...FILTROS_VAZIOS, sits: filtroInicial.situacoes ?? [], desigs: filtroInicial.designacoes ?? [] } : filtrosSalvos();
+  });
+  const [q, setQ] = useState(inicio.q);
   // Listas vazias = sem filtro. Dentro de cada tipo, basta casar um; entre tipos, todos.
-  const [grupos, setGrupos] = useState<string[]>([]);
-  const [desigs, setDesigs] = useState<FiltroDesig[]>(filtroInicial?.designacoes ?? []);
-  const [sits, setSits] = useState<Situacao[]>(filtroInicial?.situacoes ?? []);
-  const [sexos, setSexos] = useState<('M' | 'F')[]>([]);
-  const [arquivados, setArquivados] = useState(false);
+  // Descarta grupos que não existem mais (sem chip para desmarcá-los).
+  const [grupos, setGrupos] = useState<string[]>(() => inicio.grupos.filter((g) => g === 'sem' || db.grupos.some((x) => x.id === g)));
+  const [desigs, setDesigs] = useState<FiltroDesig[]>(inicio.desigs);
+  const [sits, setSits] = useState<Situacao[]>(inicio.sits);
+  const [sexos, setSexos] = useState<('M' | 'F')[]>(inicio.sexos);
+  const [arquivados, setArquivados] = useState(inicio.arquivados);
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAVE_FILTROS, JSON.stringify({ q, grupos, desigs, sits, sexos, arquivados } satisfies Filtros));
+    } catch {
+      /* sem armazenamento local */
+    }
+  }, [q, grupos, desigs, sits, sexos, arquivados]);
   const [novo, setNovo] = useState(false);
   const [extrair, setExtrair] = useState(false);
 

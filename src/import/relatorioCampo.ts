@@ -215,6 +215,25 @@ function reativaria(p: Publicador, linha: LinhaImportada): boolean {
   return Object.keys(p.relatorios).every((m) => m <= linha.mes);
 }
 
+/**
+ * A importação desta linha não muda nada: o publicador já tem o mesmo relatório no mês,
+ * a mesma designação de PA e não seria reativado.
+ */
+export function semAlteracao(p: Publicador | null | undefined, linha: LinhaImportada): boolean {
+  const atual = p?.relatorios[linha.mes];
+  if (!p || !atual || reativaria(p, linha)) return false;
+  const novo = linha.relatorio;
+  return (
+    atual.participou === novo.participou &&
+    (atual.estudos ?? null) === (novo.estudos ?? null) &&
+    (atual.horas ?? null) === (novo.horas ?? null) &&
+    !!atual.auxiliar === !!novo.auxiliar &&
+    (atual.obs ?? '').trim() === (novo.obs ?? '').trim() &&
+    (novo.creditos == null || novo.creditos === atual.creditos) &&
+    (p.auxiliarPermanente || p.auxiliarMeses.includes(linha.mes) === !!novo.auxiliar)
+  );
+}
+
 export interface ItemPrevia {
   linha: LinhaImportada;
   publicador: Publicador | null;
@@ -254,7 +273,7 @@ export function prever(db: Db, linhas: LinhaImportada[]): Previa {
   return { meses, itens, semRelatorio };
 }
 
-/** Grava os relatórios no banco. Retorna quantos registros foram aplicados. */
+/** Grava os relatórios no banco. Linhas iguais ao que já existe são puladas. Retorna quantos registros foram alterados. */
 export function aplicar(db: Db, previa: Previa, arquivo: string, criarNaoEncontrados: boolean): number {
   let n = 0;
   for (const item of previa.itens) {
@@ -263,7 +282,7 @@ export function aplicar(db: Db, previa: Previa, arquivo: string, criarNaoEncontr
       p = novoPublicador({ nome: item.linha.nome });
       db.publicadores.push(p);
     }
-    if (!p) continue;
+    if (!p || semAlteracao(p, item.linha)) continue;
     if (reativaria(p, item.linha)) p.inativo = false;
     // Créditos costumam ser digitados no cartão: sem a coluna na importação, mantém os que já existiam.
     const creditos = p.relatorios[item.linha.mes]?.creditos;
@@ -277,6 +296,7 @@ export function aplicar(db: Db, previa: Previa, arquivo: string, criarNaoEncontr
     }
     n++;
   }
+  if (n === 0) return 0;
   const data = new Date().toISOString();
   for (const mes of previa.meses) {
     // Reimportar o mesmo mês acrescenta ao histórico; só o registro "mês criado à mão/no cartão" é substituído.

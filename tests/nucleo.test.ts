@@ -4,7 +4,7 @@ import { PDFDocument } from 'pdf-lib';
 import { cifrar, decifrar, derivarChave, SenhaIncorretaError } from '../src/crypto/crypto';
 import { anoServicoDe, creditosAprovados, interpretarData, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico, totalComCreditos, ultimoMesFechado } from '../src/domain/serviceYear';
 import { dbVazio, novoPublicador } from '../src/domain/types';
-import { aplicar, analisarJson, comMes, lerColadoRelatorio, mesSugerido, normalizarMes, prever, relataHoras } from '../src/import/relatorioCampo';
+import { aplicar, analisarJson, comMes, lerColadoRelatorio, mesSugerido, normalizarMes, prever, relataHoras, semAlteracao } from '../src/import/relatorioCampo';
 import { definirAuxiliar, definirRelatorio, excluirMes, garantirMes, excluirRelatorio, mesesComDados, moverPublicador } from '../src/store/store';
 import { statusDoMes, textoFaltantes, totaisDoMes } from '../src/domain/relatorios';
 import { gerarS21 } from '../src/pdf/s21';
@@ -88,8 +88,26 @@ describe('importação', () => {
     garantirMes(db, '2026-09', '(manual)');
     const linhas = analisarJson(JSON.stringify({ mes: '2026-09', relatorios: [{ nome: 'Ana', participou: 'sim' }] }));
     aplicar(db, prever(db, linhas), 'a.json', false);
-    aplicar(db, prever(db, linhas), 'b.json', false);
+    const mudou = analisarJson(JSON.stringify({ mes: '2026-09', relatorios: [{ nome: 'Ana', participou: 'sim', estudos: 1 }] }));
+    aplicar(db, prever(db, mudou), 'b.json', false);
     expect(db.importacoes.map((i) => i.arquivo)).toEqual(['a.json', 'b.json']);
+  });
+  it('linhas iguais ao que já está gravado não contam como alteração', () => {
+    const db = dbVazio();
+    db.publicadores.push(novoPublicador({ nome: 'Ana' }), novoPublicador({ nome: 'Bia' }));
+    const json = (estudosBia: number) =>
+      analisarJson(JSON.stringify({ mes: '2026-09', relatorios: [{ nome: 'Ana', participou: 'sim', estudos: 2, observacoes: 'ok' }, { nome: 'Bia', participou: 'sim', estudos: estudosBia }] }));
+    expect(aplicar(db, prever(db, json(1)), 'a.json', false)).toBe(2);
+
+    const igual = prever(db, json(1));
+    expect(igual.itens.every((i) => semAlteracao(i.publicador, i.linha))).toBe(true);
+    expect(aplicar(db, igual, 'b.json', false)).toBe(0);
+    expect(db.importacoes.map((i) => i.arquivo)).toEqual(['a.json']); // nada mudou: não entra no histórico
+
+    const outra = prever(db, json(3));
+    expect(outra.itens.map((i) => semAlteracao(i.publicador, i.linha))).toEqual([true, false]);
+    expect(aplicar(db, outra, 'c.json', false)).toBe(1);
+    expect(db.publicadores[1].relatorios['2026-09'].estudos).toBe(3);
   });
 });
 

@@ -4,20 +4,29 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { execSync } from 'node:child_process';
 import pkg from './package.json';
 
-/** Commit atual, para saber exatamente qual versão está rodando. */
-function commit(): string {
+function git(cmd: string): string {
   try {
-    return execSync('git rev-parse --short HEAD').toString().trim();
+    return execSync(`git ${cmd}`).toString().trim();
   } catch {
     return '';
   }
+}
+
+/** Commit atual, para saber exatamente qual versão está rodando. */
+const commit = () => git('rev-parse --short HEAD');
+
+/** Versão "maior.menor" do package.json + número de commits: sobe sozinha a cada commit (ex.: 0.1.87). */
+function versao(): string {
+  const [maior, menor] = pkg.version.split('.');
+  const n = git('rev-list --count HEAD');
+  return n ? `${maior}.${menor}.${n}` : pkg.version;
 }
 
 export default defineConfig({
   // Caminhos relativos: o app funciona em qualquer subpasta (ex.: GitHub Pages) e no Tauri.
   base: './',
   define: {
-    __VERSAO__: JSON.stringify(pkg.version),
+    __VERSAO__: JSON.stringify(versao()),
     __COMMIT__: JSON.stringify(commit()),
     __COMPILADO_EM__: JSON.stringify(new Date().toISOString()),
   },

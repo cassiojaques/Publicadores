@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, ClipboardPaste, FileSpreadsheet, Upload, UserMinus, UserX } from 'lucide-react';
 import { useStore } from '../store/store';
 import {
-  aplicar, comMes, lerColadoRelatorio, lerJsonRelatorio, lerPlanilhaRelatorio, mesSugerido, prever, relataHoras, type LinhaLida, type Previa,
+  aplicar, comMes, lerColadoRelatorio, lerJsonRelatorio, lerPlanilhaRelatorio, mesSugerido, prever, relataHoras, semAlteracao, type LinhaLida, type Previa,
 } from '../import/relatorioCampo';
 import { BadgesPrivilegio, Toggle } from '../components/ui';
 import { mesRelatorioAtual, nomeMes } from '../domain/serviceYear';
@@ -84,16 +84,21 @@ function ImportarRelatorio() {
   }
 
   const precisaMes = !!lidas?.some((l) => !l.mes);
+  const base = useMemo(() => (lidas && mes ? prever(db, comMes(lidas, mes)) : null), [db, lidas, mes]);
+  /** Índices das linhas iguais ao que já está gravado — decididos antes dos ajustes, para a linha não sumir ao clicar em PA. */
+  const iguaisIdx = useMemo(
+    () => new Set(base?.itens.flatMap((i, k) => (semAlteracao(i.publicador, i.linha) ? [k] : [])) ?? []),
+    [base],
+  );
   const previa = useMemo<Previa | null>(() => {
-    if (!lidas || !mes) return null;
-    const base = prever(db, comMes(lidas, mes));
+    if (!base) return null;
     const itens = base.itens.map((it, k) => {
       const a = ajustes[k];
       if (!a) return it;
       return { ...it, linha: { ...it.linha, relatorio: { ...it.linha.relatorio, ...a } } };
     });
     return { ...base, itens };
-  }, [db, lidas, mes, ajustes]);
+  }, [base, ajustes]);
 
   const ajustar = (k: number, a: Ajuste) => setAjustes((x) => ({ ...x, [k]: { ...x[k], ...a } }));
   const fechar = () => {
@@ -107,7 +112,11 @@ function ImportarRelatorio() {
     atualizar((d) => {
       n = aplicar(d, previa, arquivo, criar);
     });
-    toast(`${n} relatórios de ${previa.meses.map(nomeMes).join(', ')} importados.`);
+    toast(
+      n === 0
+        ? 'Nada mudou: os relatórios já estavam iguais.'
+        : `${n} ${n === 1 ? 'relatório' : 'relatórios'} de ${previa.meses.map(nomeMes).join(', ')} ${n === 1 ? 'importado' : 'importados'}.`,
+    );
     fechar();
     navegar({ nome: 'relatorios', mes: previa.meses[previa.meses.length - 1] });
   }
@@ -116,11 +125,14 @@ function ImportarRelatorio() {
   const horasSemPioneiro = (i: Previa['itens'][number]) =>
     !!i.publicador && (i.linha.relatorio.horas ?? 0) > 0 && !i.linha.relatorio.auxiliar && !relataHoras(i.publicador);
 
-  const encontrados = previa?.itens.filter((i) => i.publicador) ?? [];
-  const naoEncontrados = previa?.itens.filter((i) => !i.publicador) ?? [];
+  // Linhas iguais ao que já está gravado nem aparecem: só o que de fato muda (k = índice original, usado nos ajustes).
+  const listados = (previa?.itens.map((i, k) => ({ i, k })) ?? []).filter(({ k }) => !iguaisIdx.has(k));
+  const iguais = (previa?.itens.length ?? 0) - listados.length;
+  const encontrados = listados.map(({ i }) => i).filter((i) => i.publicador);
+  const naoEncontrados = listados.map(({ i }) => i).filter((i) => !i.publicador);
   const sobrescreve = encontrados.filter((i) => i.sobrescreve);
   const mesesJaImportados = previa?.meses.filter((m) => db.importacoes.some((i) => i.mes === m)) ?? [];
-  const alertas = previa?.itens.filter(horasSemPioneiro) ?? [];
+  const alertas = listados.map(({ i }) => i).filter(horasSemPioneiro);
   const irregulares = previa?.itens.filter((i) => !i.linha.relatorio.participou) ?? [];
   const hoje = new Date();
   // Só importações de verdade: meses criados à mão ou lançados no cartão não entram no histórico.
@@ -211,7 +223,7 @@ function ImportarRelatorio() {
           )}
 
           <div className="grid gap-3 sm:grid-cols-4">
-            <Resumo cor="emerald" icone={<CheckCircle2 size={16} />} rotulo="Encontrados" valor={encontrados.length} />
+            <Resumo cor="emerald" icone={<CheckCircle2 size={16} />} rotulo="Novos ou alterados" valor={encontrados.length} />
             <Resumo cor="amber" icone={<AlertTriangle size={16} />} rotulo="Horas sem ser pioneiro" valor={alertas.length} />
             <Resumo cor="rose" icone={<UserMinus size={16} />} rotulo="Irregulares" valor={irregulares.length} />
             <Resumo cor="slate" icone={<UserX size={16} />} rotulo="Sem relatório" valor={previa.semRelatorio.length} />
@@ -223,16 +235,25 @@ function ImportarRelatorio() {
               {alertas.length === 1 ? 'Um publicador informou' : `${alertas.length} publicadores informaram`} horas sem ser pioneiro. Se for pioneiro auxiliar este mês, marque <b>PA</b>.
               <button
                 className="btn-outline ml-auto py-1"
-                onClick={() => previa.itens.forEach((i, k) => horasSemPioneiro(i) && ajustar(k, { auxiliar: true }))}
+                onClick={() => listados.forEach(({ i, k }) => horasSemPioneiro(i) && ajustar(k, { auxiliar: true }))}
               >
                 Marcar todos como PA
               </button>
             </div>
           )}
 
-          {mesesJaImportados.length > 0 && (
+          {iguais > 0 && (
+            <p className="rounded-lg bg-slate-100 p-3 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              {iguais === 1 ? '1 relatório já está igual' : `${iguais} relatórios já estão iguais`} ao que foi importado antes e não{' '}
+              {iguais === 1 ? 'aparece' : 'aparecem'} na lista.
+              {listados.length === 0 && <b> Nada a alterar.</b>}
+            </p>
+          )}
+
+          {mesesJaImportados.length > 0 && sobrescreve.length > 0 && (
             <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
-              {mesesJaImportados.map(nomeMes).join(', ')} já {mesesJaImportados.length > 1 ? 'foram importados' : 'foi importado'}. Os {sobrescreve.length} relatórios existentes serão substituídos.
+              {mesesJaImportados.map(nomeMes).join(', ')} já {mesesJaImportados.length > 1 ? 'foram importados' : 'foi importado'}.{' '}
+              {sobrescreve.length === 1 ? 'O relatório existente que mudou será substituído.' : `Os ${sobrescreve.length} relatórios existentes que mudaram serão substituídos.`}
             </p>
           )}
 
@@ -262,6 +283,7 @@ function ImportarRelatorio() {
             </details>
           )}
 
+          {listados.length > 0 && (
           <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
@@ -276,7 +298,7 @@ function ImportarRelatorio() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {previa.itens.map((i, k) => {
+                {listados.map(({ i, k }) => {
                   const r = i.linha.relatorio;
                   const alerta = horasSemPioneiro(i);
                   const pioneiro = i.publicador && relataHoras(i.publicador);
@@ -338,6 +360,7 @@ function ImportarRelatorio() {
               </tbody>
             </table>
           </div>
+          )}
 
           <div className="flex justify-end gap-2">
             <button className="btn-ghost" onClick={fechar}>Cancelar</button>

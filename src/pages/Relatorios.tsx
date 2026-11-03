@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { CalendarPlus, ClipboardCopy, ClipboardList, FileInput, ImageDown, Loader2, Search, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarPlus, ChevronLeft, ChevronRight, ClipboardCopy, ClipboardList, FileInput, ImageDown, Loader2, Search, Trash2, X } from 'lucide-react';
 import {
   definirAuxiliar, definirRelatorio, excluirMes, excluirRelatorio, garantirMes, mesesComDados, useStore,
 } from '../store/store';
@@ -79,7 +79,7 @@ export function Relatorios({ mesInicial }: { mesInicial?: string }) {
         </div>
       </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[240px_1fr]">
+      <div className="space-y-4">
         <ListaMeses meses={lista} atual={mes} aRelatar={aRelatar} onEscolher={setMesSel} />
         <DetalheMes key={mes} mes={mes} onExcluirMes={() => setExcluir(true)} />
       </div>
@@ -120,9 +120,29 @@ function ListaMeses({
 }) {
   const db = useStore((e) => e.db);
   const meses = useMemo(() => mesesComDados(db), [db]);
-  const futuros = ms.filter((m) => m > aRelatar);
-  const passados = ms.filter((m) => m < aRelatar);
   const temARelatar = ms.includes(aRelatar);
+  // Do mais recente para o mais antigo; os meses futuros (lançados antes da hora) vão para o fim.
+  const outros = [...ms.filter((m) => m < aRelatar), ...ms.filter((m) => m > aRelatar).reverse()];
+
+  const faixa = useRef<HTMLDivElement>(null);
+  const [podeVoltar, setPodeVoltar] = useState(false);
+  const [podeAvancar, setPodeAvancar] = useState(false);
+  const medir = () => {
+    const el = faixa.current;
+    if (!el) return;
+    setPodeVoltar(el.scrollLeft > 4);
+    setPodeAvancar(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  };
+  useEffect(() => {
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  }, [outros.length]);
+  // Mantém o mês aberto visível na faixa.
+  useEffect(() => {
+    faixa.current?.querySelector<HTMLElement>(`[data-mes="${atual}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  }, [atual]);
+  const rolar = (dir: 1 | -1) => faixa.current?.scrollBy({ left: dir * faixa.current.clientWidth * 0.8, behavior: 'smooth' });
 
   const progresso = (m: string) => {
     const linhas = statusDoMes(db, m, meses);
@@ -133,14 +153,14 @@ function ListaMeses({
     return { esperados, relatou, faltam, pct };
   };
 
-  // O mês que está sendo entregue agora fica fixo no topo, fora da rolagem, em destaque.
+  // O mês que está sendo entregue agora fica fixo à esquerda, fora da rolagem, em destaque.
   const destaque = () => {
     const { esperados, relatou, faltam, pct } = progresso(aRelatar);
     const sel = aRelatar === atual;
     return (
       <button
         onClick={() => onEscolher(aRelatar)}
-        className={`w-full rounded-xl bg-indigo-600 p-4 text-left text-white shadow-md transition hover:bg-indigo-700 ${
+        className={`w-full shrink-0 rounded-xl bg-indigo-600 p-4 text-left text-white shadow-md transition hover:bg-indigo-700 sm:w-64 ${
           sel ? 'ring-2 ring-indigo-300 ring-offset-2 ring-offset-slate-50 dark:ring-indigo-400 dark:ring-offset-slate-950' : ''
         }`}
       >
@@ -163,61 +183,64 @@ function ListaMeses({
 
   const item = (m: string) => {
     const { esperados, relatou, faltam, pct } = progresso(m);
+    const sel = m === atual;
+    const futuro = m > aRelatar;
     return (
       <button
         key={m}
+        data-mes={m}
         onClick={() => onEscolher(m)}
-        className={`w-full rounded-lg px-3 py-2.5 text-left transition ${
-          m === atual ? 'bg-indigo-50 dark:bg-indigo-500/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+        title={futuro ? 'Lançado no cartão antes da hora. Confira ou exclua.' : undefined}
+        className={`flex w-44 shrink-0 snap-start flex-col justify-between rounded-xl border p-3 text-left transition ${
+          sel
+            ? 'border-indigo-400 bg-indigo-50 dark:border-indigo-500 dark:bg-indigo-500/10'
+            : `bg-white hover:border-indigo-300 dark:bg-slate-900 ${futuro ? 'border-dashed border-amber-300 dark:border-amber-500/50' : 'border-slate-200 dark:border-slate-800'}`
         }`}
       >
         <span className="flex items-center justify-between gap-2 text-sm">
-          <span className={m === atual ? 'font-semibold text-indigo-700 dark:text-indigo-300' : 'font-medium'}>{nomeMes(m)}</span>
-          {faltam > 0 ? (
+          <span className={sel ? 'font-semibold text-indigo-700 dark:text-indigo-300' : 'font-medium'}>{nomeMes(m)}</span>
+        </span>
+        <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+          <span className="block h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+        </span>
+        <span className="mt-1.5 flex items-center justify-between gap-2 text-xs text-slate-500">
+          <span>
+            {relatou}/{esperados}
+          </span>
+          {futuro ? (
+            <span className="badge bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">futuro</span>
+          ) : faltam > 0 ? (
             <span className="badge bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">faltam {faltam}</span>
           ) : (
             <span className="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">completo</span>
           )}
         </span>
-        <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-          <span className="block h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
-        </span>
-        <span className="mt-1 block text-xs text-slate-500">
-          {relatou} de {esperados} relataram
-        </span>
       </button>
     );
   };
 
-  const titulo = (t: string, primeiro?: boolean) => (
-    <p
-      className={`mx-3 mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 ${
-        primeiro ? 'mt-1.5' : 'mt-3 border-t border-slate-200 pt-3 dark:border-slate-800'
-      }`}
+  const seta = (dir: 1 | -1, ativa: boolean) => (
+    <button
+      className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+      onClick={() => rolar(dir)}
+      disabled={!ativa}
+      aria-label={dir < 0 ? 'Meses mais recentes' : 'Meses mais antigos'}
     >
-      {t}
-    </p>
+      {dir < 0 ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+    </button>
   );
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
       {temARelatar && destaque()}
-      {(passados.length > 0 || futuros.length > 0) && (
-        <nav className="card max-h-[60vh] overflow-y-auto p-1.5">
-          {passados.length > 0 && (
-            <>
-              {titulo('Meses anteriores', true)}
-              {passados.map(item)}
-            </>
-          )}
-          {futuros.length > 0 && (
-            <>
-              {titulo('Meses futuros', passados.length === 0)}
-              <p className="mx-3 mb-1 text-xs text-slate-500">Lançados no cartão antes da hora. Confira ou exclua.</p>
-              {futuros.map(item)}
-            </>
-          )}
-        </nav>
+      {outros.length > 0 && (
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {seta(-1, podeVoltar)}
+          <div ref={faixa} onScroll={medir} className="flex min-w-0 flex-1 snap-x gap-2 self-stretch overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {outros.map(item)}
+          </div>
+          {seta(1, podeAvancar)}
+        </div>
       )}
     </div>
   );

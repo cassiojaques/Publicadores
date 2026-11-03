@@ -13,11 +13,17 @@ const LARGURA_COLUNA = 320;
 const ALTURA_CABECALHO_GRUPO = 44;
 const ALTURA_NOME = 30;
 const PADDING_GRUPO = 14;
+const ALTURA_RESPONSAVEL = 26;
+const PADDING_RESPONSAVEIS = 8;
 
 export interface GrupoFaltantes {
   grupo: string;
+  /** Superintendente e ajudante do grupo — aparecem em destaque logo abaixo do cabeçalho. */
+  responsaveis?: { funcao: 'Superintendente' | 'Ajudante'; nome: string }[];
   nomes: string[];
 }
+
+const alturaResponsaveis = (g: GrupoFaltantes) => (g.responsaveis?.length ? g.responsaveis.length * ALTURA_RESPONSAVEL + PADDING_RESPONSAVEIS * 2 : 0);
 
 function encurtar(ctx: CanvasRenderingContext2D, texto: string, largura: number) {
   if (ctx.measureText(texto).width <= largura) return texto;
@@ -42,7 +48,7 @@ export async function gerarImagemFaltantes(
 ): Promise<Uint8Array> {
   const total = grupos.reduce((s, g) => s + g.nomes.length, 0);
   const colunas = grupos.length <= 1 ? 1 : grupos.length <= 4 ? 2 : 3;
-  const alturaGrupo = (g: GrupoFaltantes) => ALTURA_CABECALHO_GRUPO + PADDING_GRUPO + g.nomes.length * ALTURA_NOME + PADDING_GRUPO / 2;
+  const alturaGrupo = (g: GrupoFaltantes) => ALTURA_CABECALHO_GRUPO + alturaResponsaveis(g) + PADDING_GRUPO + g.nomes.length * ALTURA_NOME + PADDING_GRUPO / 2;
 
   // Cada grupo vai para a coluna mais baixa, na ordem.
   const topoConteudo = MARGEM + 96;
@@ -121,10 +127,37 @@ export async function gerarImagemFaltantes(
     ctx.fillText(String(g.nomes.length), x + LARGURA_COLUNA - 16, y + ALTURA_CABECALHO_GRUPO / 2);
     ctx.textAlign = 'left';
 
+    // Responsáveis (superintendente e ajudante) numa faixa com a cor do grupo, em tom claro
+    const hResp = alturaResponsaveis(g);
+    if (hResp > 0) {
+      const yResp = y + ALTURA_CABECALHO_GRUPO;
+      ctx.save();
+      ctx.fillStyle = cor;
+      ctx.globalAlpha = 0.1;
+      ctx.fillRect(x, yResp, LARGURA_COLUNA, hResp);
+      ctx.globalAlpha = 1;
+      ctx.fillRect(x, yResp, 4, hResp);
+      ctx.restore();
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(x, yResp + hResp - 1, LARGURA_COLUNA, 1);
+
+      g.responsaveis!.forEach((r, k) => {
+        const ry = yResp + PADDING_RESPONSAVEIS + k * ALTURA_RESPONSAVEL + ALTURA_RESPONSAVEL / 2;
+        const rotulo = r.funcao === 'Superintendente' ? 'SUPERINTENDENTE' : 'AJUDANTE';
+        ctx.fillStyle = cor;
+        ctx.font = `700 10px ${FONTE}`;
+        ctx.fillText(rotulo, x + 16, ry);
+        ctx.fillStyle = '#0f172a';
+        ctx.font = `600 15px ${FONTE}`;
+        ctx.fillText(encurtar(ctx, r.nome, LARGURA_COLUNA - 148), x + 132, ry);
+      });
+    }
+
     // Nomes
-    ctx.font = `400 15px ${FONTE}`;
+    const responsavelDe = new Map((g.responsaveis ?? []).map((r) => [r.nome, r.funcao]));
     g.nomes.forEach((nome, j) => {
-      const ny = y + ALTURA_CABECALHO_GRUPO + PADDING_GRUPO / 2 + j * ALTURA_NOME + ALTURA_NOME / 2;
+      const ny = y + ALTURA_CABECALHO_GRUPO + hResp + PADDING_GRUPO / 2 + j * ALTURA_NOME + ALTURA_NOME / 2;
+      ctx.font = `400 15px ${FONTE}`;
       if (j > 0) {
         ctx.fillStyle = '#f1f5f9';
         ctx.fillRect(x + 16, ny - ALTURA_NOME / 2, LARGURA_COLUNA - 32, 1);
@@ -133,8 +166,23 @@ export async function gerarImagemFaltantes(
       ctx.beginPath();
       ctx.arc(x + 22, ny, 3.5, 0, Math.PI * 2);
       ctx.fill();
+      const funcao = responsavelDe.get(nome);
+      const etiqueta = funcao === 'Superintendente' ? 'Sup.' : funcao === 'Ajudante' ? 'Aj.' : '';
+      ctx.font = `700 11px ${FONTE}`;
+      const larguraEtiqueta = etiqueta ? ctx.measureText(etiqueta).width + 12 : 0;
+      ctx.font = `${etiqueta ? 600 : 400} 15px ${FONTE}`;
       ctx.fillStyle = '#1e293b';
-      ctx.fillText(encurtar(ctx, nome, LARGURA_COLUNA - 56), x + 36, ny);
+      const texto = encurtar(ctx, nome, LARGURA_COLUNA - 56 - (etiqueta ? larguraEtiqueta + 8 : 0));
+      ctx.fillText(texto, x + 36, ny);
+      if (etiqueta) {
+        const ex = x + 36 + ctx.measureText(texto).width + 8;
+        retanguloArredondado(ctx, ex, ny - 9, larguraEtiqueta, 18, 9);
+        ctx.fillStyle = cor;
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `700 11px ${FONTE}`;
+        ctx.fillText(etiqueta, ex + 6, ny);
+      }
     });
   });
 

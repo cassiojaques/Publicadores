@@ -47,13 +47,29 @@ export function totaisDoMes(linhas: LinhaMes[]) {
   return t;
 }
 
-/** Quem falta, por grupo (na ordem dos grupos; "Sem grupo" por último). Grupos sem ninguém faltando ficam de fora. */
-export function faltantesPorGrupo(db: Db, linhas: LinhaMes[]): { grupo: string; nomes: string[] }[] {
+export interface ResponsavelGrupo {
+  funcao: 'Superintendente' | 'Ajudante';
+  nome: string;
+}
+
+/**
+ * Quem falta, por grupo (na ordem dos grupos; "Sem grupo" por último). Grupos sem ninguém faltando ficam de fora.
+ * Cada grupo traz também o superintendente e o ajudante, quando definidos.
+ */
+export function faltantesPorGrupo(db: Db, linhas: LinhaMes[]): { grupo: string; responsaveis: ResponsavelGrupo[]; nomes: string[] }[] {
   const faltam = linhas.filter((l) => l.status === 'falta');
-  const grupos = [...db.grupos.map((g) => ({ id: g.id as string | null, nome: g.nome })), { id: null, nome: 'Sem grupo' }];
+  const nomeDe = (id: string | null) => (id ? db.publicadores.find((p) => p.id === id && !p.arquivado)?.nome : undefined);
+  const grupos = [
+    ...db.grupos.map((g) => ({ id: g.id as string | null, nome: g.nome, sup: nomeDe(g.superintendenteId), aj: nomeDe(g.ajudanteId) })),
+    { id: null, nome: 'Sem grupo', sup: undefined, aj: undefined },
+  ];
   return grupos
     .map((g) => ({
       grupo: g.nome,
+      responsaveis: [
+        ...(g.sup ? [{ funcao: 'Superintendente' as const, nome: g.sup }] : []),
+        ...(g.aj ? [{ funcao: 'Ajudante' as const, nome: g.aj }] : []),
+      ],
       nomes: faltam
         .filter((l) => (l.p.grupoId ?? null) === g.id)
         .map((l) => l.p.nome)

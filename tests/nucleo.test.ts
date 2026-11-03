@@ -17,7 +17,8 @@ describe('criptografia', () => {
   it('cifra e decifra com o PIN certo', async () => {
     const chave = await derivarChave('1234', undefined, 1000);
     const arq = await cifrar(chave, '{"ok":true}');
-    expect(arq).not.toContain('ok');
+    // Texto que não pode aparecer por acaso no base64 (que não tem aspas nem chaves).
+    expect(arq).not.toContain('{"ok"');
     const { texto } = await decifrar(arq, '1234');
     expect(texto).toBe('{"ok":true}');
   });

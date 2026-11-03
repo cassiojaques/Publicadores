@@ -279,9 +279,10 @@ export function aplicar(db: Db, previa: Previa, arquivo: string, criarNaoEncontr
   }
   const data = new Date().toISOString();
   for (const mes of previa.meses) {
-    db.importacoes = db.importacoes.filter((i) => i.mes !== mes);
+    // Reimportar o mesmo mês acrescenta ao histórico; só o registro "mês criado à mão/no cartão" é substituído.
+    db.importacoes = db.importacoes.filter((i) => i.mes !== mes || (i.arquivo && i.arquivo !== '(manual)'));
     db.importacoes.push({ mes, arquivo, data, registros: previa.itens.filter((i) => i.linha.mes === mes).length });
   }
-  db.importacoes.sort((a, b) => a.mes.localeCompare(b.mes));
+  db.importacoes.sort((a, b) => a.mes.localeCompare(b.mes) || a.data.localeCompare(b.data));
   return n;
 }

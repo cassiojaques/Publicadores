@@ -5,7 +5,7 @@ import { cifrar, decifrar, derivarChave, SenhaIncorretaError } from '../src/cryp
 import { anoServicoDe, creditosAprovados, interpretarData, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico, totalComCreditos, ultimoMesFechado } from '../src/domain/serviceYear';
 import { dbVazio, novoPublicador } from '../src/domain/types';
 import { aplicar, analisarJson, comMes, lerColadoRelatorio, mesSugerido, normalizarMes, prever, relataHoras } from '../src/import/relatorioCampo';
-import { definirAuxiliar, definirRelatorio, excluirMes, excluirRelatorio, mesesComDados, moverPublicador } from '../src/store/store';
+import { definirAuxiliar, definirRelatorio, excluirMes, garantirMes, excluirRelatorio, mesesComDados, moverPublicador } from '../src/store/store';
 import { statusDoMes, textoFaltantes, totaisDoMes } from '../src/domain/relatorios';
 import { gerarS21 } from '../src/pdf/s21';
 import { unzipSync } from 'fflate';
@@ -80,6 +80,15 @@ describe('importação', () => {
     expect(db.publicadores[0].relatorios['2026-09'].participou).toBe(true);
     expect(db.publicadores).toHaveLength(2);
     expect(db.importacoes[0].mes).toBe('2026-09');
+  });
+  it('reimportar o mesmo mês mantém as importações anteriores no histórico', () => {
+    const db = dbVazio();
+    db.publicadores.push(novoPublicador({ nome: 'Ana' }));
+    garantirMes(db, '2026-09', '(manual)');
+    const linhas = analisarJson(JSON.stringify({ mes: '2026-09', relatorios: [{ nome: 'Ana', participou: 'sim' }] }));
+    aplicar(db, prever(db, linhas), 'a.json', false);
+    aplicar(db, prever(db, linhas), 'b.json', false);
+    expect(db.importacoes.map((i) => i.arquivo)).toEqual(['a.json', 'b.json']);
   });
 });
 

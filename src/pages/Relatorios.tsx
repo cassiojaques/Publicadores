@@ -121,14 +121,48 @@ function ListaMeses({
   const db = useStore((e) => e.db);
   const meses = useMemo(() => mesesComDados(db), [db]);
   const futuros = ms.filter((m) => m > aRelatar);
-  const passados = ms.filter((m) => m <= aRelatar);
+  const passados = ms.filter((m) => m < aRelatar);
+  const temARelatar = ms.includes(aRelatar);
 
-  const item = (m: string) => {
+  const progresso = (m: string) => {
     const linhas = statusDoMes(db, m, meses);
     const esperados = linhas.filter((l) => l.status !== 'inativo').length;
     const relatou = linhas.filter((l) => l.status === 'relatou').length;
     const faltam = linhas.filter((l) => l.status === 'falta').length;
     const pct = esperados ? Math.round((relatou / esperados) * 100) : 100;
+    return { esperados, relatou, faltam, pct };
+  };
+
+  // O mês que está sendo entregue agora fica fixo no topo, fora da rolagem, em destaque.
+  const destaque = () => {
+    const { esperados, relatou, faltam, pct } = progresso(aRelatar);
+    const sel = aRelatar === atual;
+    return (
+      <button
+        onClick={() => onEscolher(aRelatar)}
+        className={`w-full rounded-xl bg-indigo-600 p-4 text-left text-white shadow-md transition hover:bg-indigo-700 ${
+          sel ? 'ring-2 ring-indigo-300 ring-offset-2 ring-offset-slate-50 dark:ring-indigo-400 dark:ring-offset-slate-950' : ''
+        }`}
+      >
+        <span className="block text-[11px] font-semibold uppercase tracking-wide text-indigo-200">Mês a relatar agora</span>
+        <span className="mt-0.5 block text-xl font-bold">{nomeMes(aRelatar)}</span>
+        <span className="mt-3 block h-2 overflow-hidden rounded-full bg-indigo-400/40">
+          <span className="block h-full rounded-full bg-white" style={{ width: `${pct}%` }} />
+        </span>
+        <span className="mt-2 flex items-center justify-between gap-2 text-sm">
+          <span className="text-indigo-100">
+            {relatou} de {esperados} relataram
+          </span>
+          <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-indigo-700">
+            {faltam > 0 ? `faltam ${faltam}` : 'completo'}
+          </span>
+        </span>
+      </button>
+    );
+  };
+
+  const item = (m: string) => {
+    const { esperados, relatou, faltam, pct } = progresso(m);
     return (
       <button
         key={m}
@@ -148,29 +182,44 @@ function ListaMeses({
         <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
           <span className="block h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
         </span>
-        <span className="mt-1 flex items-center justify-between gap-2 text-xs text-slate-500">
-          <span>
-            {relatou} de {esperados} relataram
-          </span>
-          {m === aRelatar && <span className="font-semibold text-indigo-600 dark:text-indigo-400">mês a relatar</span>}
+        <span className="mt-1 block text-xs text-slate-500">
+          {relatou} de {esperados} relataram
         </span>
       </button>
     );
   };
 
+  const titulo = (t: string, primeiro?: boolean) => (
+    <p
+      className={`mx-3 mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 ${
+        primeiro ? 'mt-1.5' : 'mt-3 border-t border-slate-200 pt-3 dark:border-slate-800'
+      }`}
+    >
+      {t}
+    </p>
+  );
+
   return (
-    <nav className="card max-h-[70vh] overflow-y-auto p-1.5">
-      {passados.map(item)}
-      {futuros.length > 0 && (
-        <>
-          <p className="mx-3 mb-1 mt-3 border-t border-slate-200 pt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:border-slate-800">
-            Meses futuros
-          </p>
-          <p className="mx-3 mb-1 text-xs text-slate-500">Lançados no cartão antes da hora. Confira ou exclua.</p>
-          {futuros.map(item)}
-        </>
+    <div className="space-y-3">
+      {temARelatar && destaque()}
+      {(passados.length > 0 || futuros.length > 0) && (
+        <nav className="card max-h-[60vh] overflow-y-auto p-1.5">
+          {passados.length > 0 && (
+            <>
+              {titulo('Meses anteriores', true)}
+              {passados.map(item)}
+            </>
+          )}
+          {futuros.length > 0 && (
+            <>
+              {titulo('Meses futuros', passados.length === 0)}
+              <p className="mx-3 mb-1 text-xs text-slate-500">Lançados no cartão antes da hora. Confira ou exclua.</p>
+              {futuros.map(item)}
+            </>
+          )}
+        </nav>
       )}
-    </nav>
+    </div>
   );
 }
 
@@ -230,7 +279,7 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
   const linhas = useMemo(() => statusDoMes(db, mes, meses), [db, mes, meses]);
   const totais = useMemo(() => totaisDoMes(linhas), [linhas]);
   const conta = (s: StatusMes) => linhas.filter((l) => l.status === s).length;
-  const importacao = db.importacoes.find((i) => i.mes === mes);
+  const importacao = db.importacoes.filter((i) => i.mes === mes).at(-1);
   const ordemGrupo = new Map(db.grupos.map((g, i) => [g.id, i]));
 
   const visiveis = linhas

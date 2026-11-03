@@ -124,7 +124,9 @@ function ImportarRelatorio() {
   const irregulares = previa?.itens.filter((i) => !i.linha.relatorio.participou) ?? [];
   const hoje = new Date();
   // Só importações de verdade: meses criados à mão ou lançados no cartão não entram no histórico.
-  const historico = db.importacoes.filter((i) => i.arquivo && i.arquivo !== '(manual)').reverse();
+  const historico = db.importacoes
+    .filter((i) => i.arquivo && i.arquivo !== '(manual)')
+    .sort((a, b) => b.data.localeCompare(a.data));
 
   return (
     <div className="space-y-5">
@@ -360,7 +362,7 @@ function ImportarRelatorio() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {historico.map((i) => (
-                <tr key={i.mes}>
+                <tr key={`${i.mes}-${i.data}`}>
                   <td className="td">
                     <button className="font-medium text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => navegar({ nome: 'relatorios', mes: i.mes })}>
                       {nomeMes(i.mes)}

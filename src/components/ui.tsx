@@ -70,6 +70,38 @@ export function Modal({
   );
 }
 
+/** Painel que sobe da base da tela no celular (e vira janela centralizada no desktop). */
+export function Folha({ aberto, titulo, onFechar, children, rodape }: { aberto: boolean; titulo: string; onFechar: () => void; children: ReactNode; rodape?: ReactNode }) {
+  useEffect(() => {
+    if (!aberto) return;
+    const h = (e: KeyboardEvent) => e.key === 'Escape' && onFechar();
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [aberto, onFechar]);
+  if (!aberto) return null;
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/50 backdrop-blur-sm sm:items-center sm:p-4" onClick={onFechar}>
+      <div
+        className="flex max-h-[88dvh] w-full flex-col rounded-t-2xl bg-white shadow-2xl dark:bg-slate-900 sm:max-w-lg sm:rounded-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label={titulo}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-slate-300 dark:bg-slate-700 sm:hidden" />
+        <div className="flex shrink-0 items-center justify-between px-5 pb-2 pt-3">
+          <h2 className="text-base font-semibold">{titulo}</h2>
+          <button className="btn-ghost p-1.5" onClick={onFechar} aria-label="Fechar">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-[max(1rem,env(safe-area-inset-bottom))]">{children}</div>
+        {rodape && <div className="shrink-0 border-t border-slate-200 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-slate-800">{rodape}</div>}
+      </div>
+    </div>
+  );
+}
+
 const CORES_TOGGLE = {
   indigo: 'checked:bg-indigo-600 focus-visible:outline-indigo-500',
   rose: 'checked:bg-rose-600 focus-visible:outline-rose-500',

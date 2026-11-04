@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Fuse from 'fuse.js';
-import { ClipboardCopy, FileStack, FilterX, IdCard, Plus, Search, Users } from 'lucide-react';
+import { ChevronRight, ClipboardCopy, FileStack, FilterX, IdCard, Phone, Plus, Search, SlidersHorizontal, Users, X } from 'lucide-react';
 import { mesesComDados, moverPublicador, useStore } from '../store/store';
 import { situacao, type Situacao } from '../domain/serviceYear';
 import { PRIVILEGIOS, type Privilegio, type Publicador } from '../domain/types';
-import { Toggle, Vazio } from '../components/ui';
+import { Avatar, BadgeSituacao, BadgesPrivilegio, Folha, Toggle, Vazio } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
 import { ExtrairDados } from '../components/ExtrairDados';
 import { salvarArquivoGerado } from '../storage/storage';
@@ -70,30 +70,46 @@ const DESIGNACOES_FILTRO: { id: FiltroDesig; rotulo: string; titulo: string }[] 
 const alternar = <T,>(lista: T[], v: T) => (lista.includes(v) ? lista.filter((x) => x !== v) : [...lista, v]);
 
 /** Botão de pré-filtro: clica para incluir/excluir. Vários do mesmo tipo somam (um OU outro). */
-function Chip({ ativo, onClick, titulo, children }: { ativo: boolean; onClick: () => void; titulo?: string; children: ReactNode }) {
+function Chip({ ativo, onClick, titulo, n, children }: { ativo: boolean; onClick: () => void; titulo?: string; n?: number; children: ReactNode }) {
   return (
     <button
       type="button"
       title={titulo}
       aria-pressed={ativo}
       onClick={onClick}
-      className={`whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium transition ${
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition md:px-2.5 md:py-0.5 md:text-xs ${
         ativo
           ? 'border-indigo-500 bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
-          : 'border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+          : `border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 ${n === 0 ? 'opacity-45' : ''}`
       }`}
     >
       {children}
+      {n !== undefined && <span className={`text-[11px] tabular-nums ${ativo ? 'text-indigo-100' : 'text-slate-400 dark:text-slate-500'}`}>{n}</span>}
     </button>
   );
 }
 
 function LinhaFiltro({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-indigo-900/50 dark:text-slate-500">{rotulo}</span>
-      {children}
+    <div className="flex flex-col gap-1.5 md:flex-row md:items-center">
+      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-indigo-900/60 dark:text-slate-500 md:w-24">{rotulo}</span>
+      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
     </div>
+  );
+}
+
+/** Pequena etiqueta removível, para resumir os filtros ativos no celular. */
+function EtiquetaAtiva({ rotulo, onRemover }: { rotulo: string; onRemover: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onRemover}
+      aria-label={`Remover filtro ${rotulo}`}
+      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-600 py-1 pl-3 pr-2 text-xs font-medium text-white shadow-sm shadow-indigo-600/30"
+    >
+      {rotulo}
+      <X size={13} />
+    </button>
   );
 }
 
@@ -155,18 +171,31 @@ export function Publicadores() {
     [db.publicadores],
   );
 
-  const lista = (q.trim() ? fuse.search(q.trim()).map((r) => r.item) : [...db.publicadores].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true })))
-    .filter((p) => p.arquivado === arquivados)
-    .filter((p) => !grupos.length || grupos.includes(p.grupoId ?? 'sem'))
-    .filter((p) => !sexos.length || sexos.includes(p.sexo))
-    .filter((p) => !sits.length || sits.includes(situacoes.get(p.id)!))
-    .filter(
-      (p) =>
-        !desigs.length ||
-        desigs.some((d) => (d === 'pap' ? p.auxiliarPermanente : d === 'nb' ? !p.batizado : p.privilegios.includes(d))),
-    );
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
 
-  const temFiltro = q !== '' || grupos.length > 0 || desigs.length > 0 || sits.length > 0 || sexos.length > 0 || arquivados;
+  const baseBusca = (q.trim() ? fuse.search(q.trim()).map((r) => r.item) : [...db.publicadores].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }))).filter(
+    (p) => p.arquivado === arquivados,
+  );
+  const temDesig = (p: Publicador, d: FiltroDesig) => (d === 'pap' ? p.auxiliarPermanente : d === 'nb' ? !p.batizado : p.privilegios.includes(d));
+  type Faceta = 'grupos' | 'sexos' | 'sits' | 'desigs';
+  /** Aplica os filtros, menos o de `ignorar` — assim cada botão mostra quantos resultaria ao marcá-lo. */
+  const passa = (p: Publicador, ignorar?: Faceta) =>
+    (ignorar === 'grupos' || !grupos.length || grupos.includes(p.grupoId ?? 'sem')) &&
+    (ignorar === 'sexos' || !sexos.length || sexos.includes(p.sexo)) &&
+    (ignorar === 'sits' || !sits.length || sits.includes(situacoes.get(p.id)!)) &&
+    (ignorar === 'desigs' || !desigs.length || desigs.some((d) => temDesig(p, d)));
+  const lista = baseBusca.filter((p) => passa(p));
+  const contar = (f: Faceta, pred: (p: Publicador) => boolean) => baseBusca.filter((p) => passa(p, f) && pred(p)).length;
+
+  const nFiltros = grupos.length + desigs.length + sits.length + sexos.length + (arquivados ? 1 : 0);
+  const temFiltro = q !== '' || nFiltros > 0;
+  const etiquetas = [
+    ...sits.map((s) => ({ k: `s-${s}`, r: s === 'ativo' ? 'Ativos' : 'Inativos', rm: () => setSits((x) => x.filter((y) => y !== s)) })),
+    ...sexos.map((s) => ({ k: `x-${s}`, r: s === 'M' ? 'Irmãos' : 'Irmãs', rm: () => setSexos((x) => x.filter((y) => y !== s)) })),
+    ...desigs.map((d) => ({ k: `d-${d}`, r: DESIGNACOES_FILTRO.find((x) => x.id === d)?.rotulo ?? d, rm: () => setDesigs((x) => x.filter((y) => y !== d)) })),
+    ...grupos.map((g) => ({ k: `g-${g}`, r: g === 'sem' ? 'Sem grupo' : (db.grupos.find((x) => x.id === g)?.nome ?? g), rm: () => setGrupos((x) => x.filter((y) => y !== g)) })),
+    ...(arquivados ? [{ k: 'arq', r: 'Arquivados', rm: () => setArquivados(false) }] : []),
+  ];
   function limparFiltros() {
     setQ('');
     setGrupos([]);
@@ -193,65 +222,116 @@ export function Publicadores() {
     }
   }
 
+  const painelFiltros = (
+    <div className="space-y-4 md:space-y-1.5">
+      <LinhaFiltro rotulo="Situação">
+        <Chip n={contar('sits', (p) => situacoes.get(p.id) === 'ativo')} ativo={sits.includes('ativo')} onClick={() => setSits((x) => alternar(x, 'ativo'))}>Ativos</Chip>
+        <Chip n={contar('sits', (p) => situacoes.get(p.id) === 'inativo')} ativo={sits.includes('inativo')} onClick={() => setSits((x) => alternar(x, 'inativo'))}>Inativos</Chip>
+      </LinhaFiltro>
+      <LinhaFiltro rotulo="Sexo">
+        <Chip n={contar('sexos', (p) => p.sexo === 'M')} ativo={sexos.includes('M')} onClick={() => setSexos((x) => alternar(x, 'M'))}>Irmãos</Chip>
+        <Chip n={contar('sexos', (p) => p.sexo === 'F')} ativo={sexos.includes('F')} onClick={() => setSexos((x) => alternar(x, 'F'))}>Irmãs</Chip>
+      </LinhaFiltro>
+      <LinhaFiltro rotulo="Designações">
+        {DESIGNACOES_FILTRO.map((d) => (
+          <Chip key={d.id} n={contar('desigs', (p) => temDesig(p, d.id))} titulo={d.titulo} ativo={desigs.includes(d.id)} onClick={() => setDesigs((x) => alternar(x, d.id))}>
+            {d.rotulo}
+          </Chip>
+        ))}
+      </LinhaFiltro>
+      <LinhaFiltro rotulo="Grupos">
+        {db.grupos.map((g) => (
+          <Chip key={g.id} n={contar('grupos', (p) => p.grupoId === g.id)} ativo={grupos.includes(g.id)} onClick={() => setGrupos((x) => alternar(x, g.id))}>
+            {g.nome}
+          </Chip>
+        ))}
+        <Chip n={contar('grupos', (p) => !p.grupoId)} ativo={grupos.includes('sem')} onClick={() => setGrupos((x) => alternar(x, 'sem'))}>Sem grupo</Chip>
+      </LinhaFiltro>
+    </div>
+  );
+  const seletorArquivados = (
+    <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+      <Toggle checked={arquivados} onChange={(e) => setArquivados(e.target.checked)} />
+      Arquivados
+    </label>
+  );
+
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-2xl font-semibold">Publicadores</h1>
-          <p className="text-sm text-slate-500">{lista.length} exibidos</p>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-baseline gap-2 md:gap-3">
+          <h1 className="text-xl font-semibold md:text-2xl">Publicadores</h1>
+          <p className="whitespace-nowrap text-sm text-slate-500">
+            {lista.length} <span className="hidden sm:inline">exibidos</span>
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button className="btn-outline" onClick={copiarNomes} disabled={lista.length === 0} title="Copia os nomes exibidos, um por linha, para colar numa planilha">
-            <ClipboardCopy size={16} /> Copiar nomes
+        <div className="flex shrink-0 gap-2">
+          <button className="btn-outline px-2.5 md:px-3" onClick={copiarNomes} disabled={lista.length === 0} aria-label="Copiar nomes" title="Copia os nomes exibidos, um por linha, para colar numa planilha">
+            <ClipboardCopy size={16} /> <span className="hidden lg:inline">Copiar nomes</span>
           </button>
-          <button className="btn-outline" onClick={() => setExtrair(true)} disabled={db.publicadores.length === 0} title="Gera um .zip com os cartões S-21 em pastas, os totais, os grupos e a lista de emergência">
-            <FileStack size={16} /> Extrair dados
+          <button className="btn-outline px-2.5 md:px-3" onClick={() => setExtrair(true)} disabled={db.publicadores.length === 0} aria-label="Extrair dados" title="Gera um .zip com os cartões S-21 em pastas, os totais, os grupos e a lista de emergência">
+            <FileStack size={16} /> <span className="hidden lg:inline">Extrair dados</span>
           </button>
-          <button className="btn-primary" onClick={() => setNovo(true)}>
-            <Plus size={16} /> Novo publicador
+          <button className="btn-primary" onClick={() => setNovo(true)} aria-label="Novo publicador">
+            <Plus size={16} /> <span className="hidden sm:inline">Novo publicador</span>
           </button>
         </div>
       </div>
 
       <div className="card space-y-2 p-2">
-        <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[200px] flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className="input py-1.5 pl-9" placeholder="Filtrar por nome, telefone…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input className="input py-2 pl-9 pr-8 md:py-1.5" type="search" placeholder="Buscar por nome, telefone…" value={q} onChange={(e) => setQ(e.target.value)} />
+            {q && (
+              <button className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:text-slate-600" onClick={() => setQ('')} aria-label="Limpar busca">
+                <X size={15} />
+              </button>
+            )}
+          </div>
+          {/* Celular: filtros num painel que sobe da base */}
+          <button className="btn-outline relative shrink-0 py-2 md:hidden" onClick={() => setFiltrosAbertos(true)} aria-label="Abrir filtros">
+            <SlidersHorizontal size={16} /> Filtros
+            {nFiltros > 0 && (
+              <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1 text-[11px] font-semibold text-white">{nFiltros}</span>
+            )}
+          </button>
+          {/* Desktop */}
+          <div className="hidden items-center gap-3 px-1 md:flex">{seletorArquivados}</div>
+          <button className="btn-ghost hidden py-1.5 md:inline-flex" onClick={limparFiltros} disabled={!temFiltro} title="Volta todos os filtros ao padrão">
+            <FilterX size={16} /> Limpar filtros
+          </button>
         </div>
-        <label className="flex items-center gap-2 px-2 text-sm text-slate-600 dark:text-slate-400">
-          <Toggle checked={arquivados} onChange={(e) => setArquivados(e.target.checked)} />
-          Arquivados
-        </label>
-        <button className="btn-ghost py-1.5" onClick={limparFiltros} disabled={!temFiltro} title="Volta todos os filtros ao padrão">
-          <FilterX size={16} /> Limpar filtros
-        </button>
-        </div>
-        <div className="space-y-1.5 border-t border-slate-100 px-1 pt-2 dark:border-slate-800">
-          <LinhaFiltro rotulo="Situação">
-            <Chip ativo={sits.includes('ativo')} onClick={() => setSits((x) => alternar(x, 'ativo'))}>Ativos</Chip>
-            <Chip ativo={sits.includes('inativo')} onClick={() => setSits((x) => alternar(x, 'inativo'))}>Inativos</Chip>
-            <span className="mx-1 h-4 w-px bg-slate-200 dark:bg-slate-700" />
-            <Chip ativo={sexos.includes('M')} onClick={() => setSexos((x) => alternar(x, 'M'))}>Irmãos</Chip>
-            <Chip ativo={sexos.includes('F')} onClick={() => setSexos((x) => alternar(x, 'F'))}>Irmãs</Chip>
-          </LinhaFiltro>
-          <LinhaFiltro rotulo="Designações">
-            {DESIGNACOES_FILTRO.map((d) => (
-              <Chip key={d.id} titulo={d.titulo} ativo={desigs.includes(d.id)} onClick={() => setDesigs((x) => alternar(x, d.id))}>
-                {d.rotulo}
-              </Chip>
+        {etiquetas.length > 0 && (
+          <div className="-mx-2 flex gap-1.5 overflow-x-auto px-2 pb-1 md:hidden">
+            {etiquetas.map((e) => (
+              <EtiquetaAtiva key={e.k} rotulo={e.r} onRemover={e.rm} />
             ))}
-          </LinhaFiltro>
-          <LinhaFiltro rotulo="Grupos">
-            {db.grupos.map((g) => (
-              <Chip key={g.id} ativo={grupos.includes(g.id)} onClick={() => setGrupos((x) => alternar(x, g.id))}>
-                {g.nome}
-              </Chip>
-            ))}
-            <Chip ativo={grupos.includes('sem')} onClick={() => setGrupos((x) => alternar(x, 'sem'))}>Sem grupo</Chip>
-          </LinhaFiltro>
-        </div>
+          </div>
+        )}
+        <div className="hidden border-t border-slate-100 px-1 pt-2 dark:border-slate-800 md:block">{painelFiltros}</div>
       </div>
+
+      <Folha
+        aberto={filtrosAbertos}
+        titulo="Filtros"
+        onFechar={() => setFiltrosAbertos(false)}
+        rodape={
+          <div className="flex gap-2">
+            <button className="btn-outline flex-1 py-2.5" onClick={limparFiltros} disabled={!temFiltro}>
+              <FilterX size={16} /> Limpar
+            </button>
+            <button className="btn-primary flex-[2] py-2.5" onClick={() => setFiltrosAbertos(false)}>
+              Ver {lista.length} {lista.length === 1 ? 'publicador' : 'publicadores'}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {painelFiltros}
+          <div className="border-t border-slate-100 pt-3 dark:border-slate-800">{seletorArquivados}</div>
+        </div>
+      </Folha>
 
       <div className="card overflow-hidden">
         {lista.length === 0 ? (
@@ -269,7 +349,47 @@ export function Publicadores() {
             )}
           </Vazio>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Celular: um cartão por publicador; toque para abrir. */}
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
+            {lista.map((p) => {
+              const s = situacoes.get(p.id)!;
+              const grupo = db.grupos.find((g) => g.id === p.grupoId)?.nome;
+              return (
+                <li key={p.id} className="flex items-stretch">
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-3 pr-2 text-left active:bg-indigo-50 dark:active:bg-slate-800"
+                    onClick={() => navegar({ nome: 'publicador', id: p.id })}
+                    aria-label={`Abrir ${p.nome}`}
+                  >
+                    <Avatar nome={p.nome} tamanho={38} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate font-medium">{p.nome}</span>
+                        {s === 'inativo' && <BadgeSituacao s={s} />}
+                      </span>
+                      <span className="mt-1 flex flex-wrap items-center gap-1">
+                        <BadgesPrivilegio p={p} />
+                        <span className="text-xs text-slate-500">{grupo ?? 'Sem grupo'}</span>
+                      </span>
+                    </span>
+                    <ChevronRight size={16} className="shrink-0 text-slate-300 dark:text-slate-600" />
+                  </button>
+                  {p.telefone && (
+                    <a
+                      href={`tel:${p.telefone.replace(/[^\d+]/g, '')}`}
+                      className="flex w-12 shrink-0 items-center justify-center border-l border-slate-100 text-emerald-600 active:bg-emerald-50 dark:border-slate-800 dark:text-emerald-400 dark:active:bg-slate-800"
+                      aria-label={`Ligar para ${p.nome}`}
+                    >
+                      <Phone size={18} />
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead className="border-b border-indigo-100 dark:border-slate-800">
                 <tr>
@@ -415,6 +535,7 @@ export function Publicadores() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

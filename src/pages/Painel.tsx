@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { mesesComDados, useStore } from '../store/store';
 import type { Publicador } from '../domain/types';
-import { anoServicoDe, MESES_ANO_SERVICO, mesesDoAnoServico, mesRelatorioAtual, nomeMes, situacao, totalComCreditos, ultimoMesFechado } from '../domain/serviceYear';
+import { anoServicoDe, MESES_ANO_SERVICO, mesesDoAnoServico, mesReferenciaSituacao, mesRelatorioAtual, nomeMes, situacao, totalComCreditos, ultimoMesFechado, ultimosMeses } from '../domain/serviceYear';
 import { Avatar, BadgeSituacao, Toggle } from '../components/ui';
 
 const MES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -266,17 +266,30 @@ export function Painel() {
   // Quem já está inativo fica de fora: aparece no quadro de inativos.
   const semParticipar = useMemo(() => {
     const inativos = new Set(stats.atencao.map((x) => x.p.id));
-    const comRelatos = [...meses].filter((k) => k <= ultimoMesFechado() && ativos.some((p) => p.relatorios[k]?.participou)).sort().reverse();
+    // Quem já tem o mês recém-terminado cadastrado entra nele sem esperar o dia 20.
+    const comRelatos = [...meses].filter((k) => k <= mesEsperado && ativos.some((p) => p.relatorios[k]?.participou)).sort().reverse();
+    const fechado = ultimoMesFechado();
     const lista = ativos
       .filter((p) => !inativos.has(p.id))
       .map((p) => {
-        const i = comRelatos.findIndex((k) => p.relatorios[k]?.participou);
-        return { p, meses: i === -1 ? comRelatos.length : i };
+        const ks = comRelatos.filter((k) => k <= fechado || p.relatorios[k]);
+        const i = ks.findIndex((k) => p.relatorios[k]?.participou);
+        return { p, meses: i === -1 ? ks.length : i };
       })
       .filter((x) => x.meses >= MESES_SEM_PARTICIPAR)
       .sort((a, b) => b.meses - a.meses || a.p.nome.localeCompare(b.p.nome, 'pt-BR'));
     return { ate: comRelatos[0] ?? null, lista };
-  }, [ativos, meses, stats.atencao]);
+  }, [ativos, meses, stats.atencao, mesEsperado]);
+
+  // Ficaram inativos agora: com o mês anterior ainda eram ativos (exclui os marcados à mão).
+  const novosInativos = useMemo(
+    () =>
+      stats.atencao
+        .filter(({ p }) => !p.inativo && situacao(p, meses, ultimosMeses(2, mesReferenciaSituacao(p))[0]) === 'ativo')
+        .map((x) => x.p),
+    [stats.atencao, meses],
+  );
+  const idsNovos = useMemo(() => new Set(novosInativos.map((p) => p.id)), [novosInativos]);
 
   // Aniversários de batismo no mês corrente.
   const hoje = new Date();
@@ -325,6 +338,30 @@ export function Painel() {
           </button>
         )}
       </div>
+
+      {novosInativos.length > 0 && (
+        <div className="card flex flex-wrap items-center gap-x-4 gap-y-2 border-rose-200 bg-gradient-to-r from-rose-50 to-orange-50 p-4 dark:border-rose-500/30 dark:from-rose-500/10 dark:to-orange-500/5">
+          <span className="rounded-full bg-rose-100 p-2 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300">
+            <UserX size={20} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">
+              {novosInativos.length === 1 ? 'Ficou inativo' : 'Ficaram inativos'} neste mês ({novosInativos.length})
+            </p>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {novosInativos.map((p) => (
+                <button
+                  key={p.id}
+                  className="rounded-full bg-white px-3 py-1 text-sm shadow-sm ring-1 ring-rose-200 hover:ring-rose-400 dark:bg-slate-900 dark:ring-rose-500/30"
+                  onClick={() => navegar({ nome: 'publicador', id: p.id })}
+                >
+                  {p.nome}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {primeiroAno.length > 0 && (
         <div className="card flex flex-wrap items-center gap-x-4 gap-y-2 border-sky-200 bg-gradient-to-r from-sky-50 to-indigo-50 p-4 dark:border-sky-500/30 dark:from-sky-500/10 dark:to-indigo-500/5">
@@ -399,10 +436,11 @@ export function Painel() {
           ) : (
             <ul className="max-h-96 divide-y divide-slate-100 overflow-y-auto pr-1 dark:divide-slate-800">
               {stats.atencao.map(({ p, s }) => (
-                <li key={p.id}>
-                  <button className="flex w-full items-center gap-3 py-2 text-left text-sm" onClick={() => navegar({ nome: 'publicador', id: p.id })}>
+                <li key={p.id} className={idsNovos.has(p.id) ? 'bg-rose-50 dark:bg-rose-500/10' : ''}>
+                  <button className="flex w-full items-center gap-3 px-1 py-2 text-left text-sm" onClick={() => navegar({ nome: 'publicador', id: p.id })}>
                     <Avatar nome={p.nome} tamanho={28} />
                     <span className="flex-1 truncate">{p.nome}</span>
+                    {idsNovos.has(p.id) && <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-semibold uppercase text-white">Novo</span>}
                     <span className="text-xs text-slate-400">{db.grupos.find((g) => g.id === p.grupoId)?.nome ?? 'Sem grupo'}</span>
                     <BadgeSituacao s={s} />
                   </button>

@@ -111,13 +111,22 @@ export function ultimoMesFechado(hoje = new Date()): string {
   return chaveMes(d.getFullYear(), d.getMonth() + 1);
 }
 
+/**
+ * Último mês que conta para o publicador: o mês fechado (prazo até o dia 20) ou, se o relatório
+ * dele já foi cadastrado, o mês recém-terminado — sem esperar o prazo.
+ */
+export function mesReferenciaSituacao(p: Publicador, hoje = new Date()): string {
+  const recente = mesRelatorioAtual(hoje);
+  return p.relatorios[recente] ? recente : ultimoMesFechado(hoje);
+}
+
 export type Situacao = 'ativo' | 'inativo';
 
 /**
  * Inativo: marcado manualmente, ou não participou em nenhum dos últimos 6 meses fechados
  * (considerando apenas meses que já têm relatórios na congregação). Os demais são ativos.
  */
-export function situacao(p: Publicador, mesesComDados: Set<string>, ate = ultimoMesFechado()): Situacao {
+export function situacao(p: Publicador, mesesComDados: Set<string>, ate = mesReferenciaSituacao(p)): Situacao {
   if (p.inativo) return 'inativo';
   const janela = ultimosMeses(6, ate).filter((k) => mesesComDados.has(k));
   if (janela.length === 6 && !janela.some((k) => p.relatorios[k]?.participou)) return 'inativo';

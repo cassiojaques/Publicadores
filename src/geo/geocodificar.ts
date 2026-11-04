@@ -8,6 +8,18 @@ export function consultaEndereco(endereco: string, cidade: string): string {
   return `${e}, ${c}`;
 }
 
+/**
+ * Link que abre o endereço no aplicativo de mapas (Google Maps no celular, no navegador no computador).
+ * Usa o ponto do mapa do app quando já foi localizado (inclusive o ajustado à mão); senão, o texto do endereço.
+ */
+export function urlMapa(p: Publicador, cidade: string): string | null {
+  const e = p.endereco.trim();
+  if (!e) return null;
+  const local = localAtual(p);
+  const consulta = local ? `${local.lat},${local.lng}` : consultaEndereco(e, cidade);
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(consulta)}`;
+}
+
 /** Tem endereço e ainda não foi localizado (ou o endereço mudou desde então). */
 export function precisaLocalizar(p: Publicador): boolean {
   const e = p.endereco.trim();

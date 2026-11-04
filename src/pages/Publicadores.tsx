@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Fuse from 'fuse.js';
-import { ChevronRight, ClipboardCopy, FileStack, FilterX, IdCard, Phone, Plus, Search, SlidersHorizontal, Users, X } from 'lucide-react';
+import { ChevronRight, ClipboardCopy, FileStack, FilterX, IdCard, MapPin, Phone, Plus, Search, SlidersHorizontal, Users, X } from 'lucide-react';
 import { mesesComDados, moverPublicador, useStore } from '../store/store';
 import { situacao, type Situacao } from '../domain/serviceYear';
 import { PRIVILEGIOS, type Privilegio, type Publicador } from '../domain/types';
@@ -8,6 +8,7 @@ import { Avatar, BadgeSituacao, BadgesPrivilegio, Folha, Toggle, Vazio } from '.
 import { FormPublicador } from '../components/FormPublicador';
 import { ExtrairDados } from '../components/ExtrairDados';
 import { salvarArquivoGerado } from '../storage/storage';
+import { urlMapa } from '../geo/geocodificar';
 
 const CORES_PRIV: Record<Privilegio | 'pap', string> = {
   anciao: 'border-indigo-500 bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
@@ -376,6 +377,18 @@ export function Publicadores() {
                     </span>
                     <ChevronRight size={16} className="shrink-0 text-slate-300 dark:text-slate-600" />
                   </button>
+                  {urlMapa(p, db.congregacao.cidade ?? '') && (
+                    <a
+                      href={urlMapa(p, db.congregacao.cidade ?? '')!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex w-12 shrink-0 items-center justify-center border-l border-slate-100 text-indigo-600 active:bg-indigo-50 dark:border-slate-800 dark:text-indigo-300 dark:active:bg-slate-800"
+                      aria-label={`Abrir o endereço de ${p.nome} no mapa`}
+                      title={p.endereco}
+                    >
+                      <MapPin size={18} />
+                    </a>
+                  )}
                   {p.telefone && (
                     <a
                       href={`tel:${p.telefone.replace(/[^\d+]/g, '')}`}
@@ -400,6 +413,7 @@ export function Publicadores() {
                   <th className="th">Designações</th>
                   <th className="th">Grupo</th>
                   <th className="th min-w-[130px]">Telefone</th>
+                  <th className="th min-w-[220px]">Endereço</th>
                   <th className="th">Situação</th>
                 </tr>
               </thead>
@@ -507,6 +521,23 @@ export function Publicadores() {
                       </td>
                       <td className="px-1 py-0.5">
                         <CelulaTexto aria-label="Telefone" placeholder="—" valor={p.telefone} onSalvar={(v) => editar(p.id, (x) => (x.telefone = v))} />
+                      </td>
+                      <td className="px-1 py-0.5">
+                        <div className="flex items-center gap-0.5">
+                          <CelulaTexto aria-label="Endereço" placeholder="—" valor={p.endereco} onSalvar={(v) => editar(p.id, (x) => (x.endereco = v))} />
+                          {urlMapa(p, db.congregacao.cidade ?? '') && (
+                            <a
+                              href={urlMapa(p, db.congregacao.cidade ?? '')!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 rounded-md p-1.5 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-500/15"
+                              title="Abrir no mapa"
+                              aria-label={`Abrir o endereço de ${p.nome} no mapa`}
+                            >
+                              <MapPin size={16} />
+                            </a>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-0.5">
                         <button

@@ -6,7 +6,8 @@ import {
   situacao, totaisAnoServico, totalComCreditos,
 } from '../domain/serviceYear';
 import { auxiliarNoMes, type RelatorioMes } from '../domain/types';
-import { Avatar, BadgeSituacao, BadgesPrivilegio, Confirmar, SeletorAnoServico, Toggle } from '../components/ui';
+import { urlWhatsapp } from '../domain/contato';
+import { Avatar, BadgeSituacao, BadgesPrivilegio, Confirmar, IconeWhatsapp, SeletorAnoServico, Toggle } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
 import { gerarS21Bytes } from '../pdf/s21';
 import { salvarArquivoGerado } from '../storage/storage';
@@ -118,6 +119,11 @@ export function PublicadorDetalhe({ id }: { id: string }) {
           {p.telefone && (
             <a href={`tel:${p.telefone.replace(/[^\d+]/g, '')}`} className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:underline dark:text-indigo-300">
               <Phone size={14} /> {p.telefone}
+            </a>
+          )}
+          {p.telefone && urlWhatsapp(p.telefone) && (
+            <a href={urlWhatsapp(p.telefone)!} target="_blank" rel="noopener noreferrer" className="ml-3 mt-0.5 inline-flex items-center gap-1.5 text-sm text-green-600 hover:underline dark:text-green-400">
+              <IconeWhatsapp size={14} /> WhatsApp
             </a>
           )}
           {p.endereco && <p className="text-sm text-slate-500">{p.endereco}</p>}

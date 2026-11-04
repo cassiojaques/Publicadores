@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Fuse from 'fuse.js';
-import { ChevronRight, ClipboardCopy, FileStack, FilterX, IdCard, MapPin, Phone, Plus, Search, SlidersHorizontal, Users, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, ClipboardCopy, FileStack, FilterX, IdCard, MapPin, Phone, Plus, Search, SlidersHorizontal, Users, X } from 'lucide-react';
 import { mesesComDados, moverPublicador, useStore } from '../store/store';
 import { situacao, type Situacao } from '../domain/serviceYear';
 import { PRIVILEGIOS, type Privilegio, type Publicador } from '../domain/types';
@@ -9,6 +9,8 @@ import { FormPublicador } from '../components/FormPublicador';
 import { ExtrairDados } from '../components/ExtrairDados';
 import { salvarArquivoGerado } from '../storage/storage';
 import { urlMapa } from '../geo/geocodificar';
+import { urlWhatsapp } from '../domain/contato';
+import { IconeWhatsapp } from '../components/ui';
 
 const CORES_PRIV: Record<Privilegio | 'pap', string> = {
   anciao: 'border-indigo-500 bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
@@ -134,6 +136,38 @@ function filtrosSalvos(): Filtros {
   }
 }
 
+type ColunaOrdem = 'nome' | 'sexo' | 'batizado' | 'desigs' | 'grupo' | 'telefone' | 'endereco' | 'situacao';
+interface Ordem {
+  col: ColunaOrdem;
+  dir: 1 | -1;
+}
+
+const porNome = (a: Publicador, b: Publicador) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true });
+
+/** Posição da designação mais "alta" do publicador (ancião primeiro); sem designação = vazio. */
+function menorDesig(p: Publicador): number | '' {
+  const pos = [...PRIVILEGIOS.map((x, i) => (p.privilegios.includes(x.id) ? i : -1)), p.auxiliarPermanente ? PRIVILEGIOS.length : -1].filter((i) => i >= 0);
+  return pos.length ? Math.min(...pos) : '';
+}
+
+/** Cabeçalho de coluna que ordena a lista ao clicar. */
+function ThOrdenavel({ col, ordem, onOrdenar, className = '', titulo, children }: { col: ColunaOrdem; ordem: Ordem | null; onOrdenar: (c: ColunaOrdem) => void; className?: string; titulo?: string; children: ReactNode }) {
+  const ativa = ordem?.col === col;
+  return (
+    <th className={`th ${className}`} aria-sort={ativa ? (ordem.dir === 1 ? 'ascending' : 'descending') : 'none'}>
+      <button
+        type="button"
+        onClick={() => onOrdenar(col)}
+        title={titulo ?? `Ordenar por ${String(children).toLowerCase()}`}
+        className={`inline-flex items-center gap-1 uppercase hover:text-indigo-700 dark:hover:text-indigo-300 ${ativa ? 'text-indigo-700 dark:text-indigo-300' : ''}`}
+      >
+        {children}
+        {ativa ? ordem.dir === 1 ? <ArrowUp size={12} /> : <ArrowDown size={12} /> : <ArrowUpDown size={12} className="opacity-30" />}
+      </button>
+    </th>
+  );
+}
+
 const selectCelula =
   'rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm outline-none hover:border-slate-300 focus:border-indigo-500 dark:hover:border-slate-700 dark:bg-transparent';
 
@@ -174,7 +208,12 @@ export function Publicadores() {
 
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
 
-  const baseBusca = (q.trim() ? fuse.search(q.trim()).map((r) => r.item) : [...db.publicadores].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }))).filter(
+  const [ordem, setOrdem] = useState<Ordem | null>(null);
+  /** 1º clique: crescente; 2º: decrescente; 3º: volta à ordem padrão. */
+  const ordenarPor = (col: ColunaOrdem) =>
+    setOrdem((o) => (o?.col !== col ? { col, dir: 1 } : o.dir === 1 ? { col, dir: -1 } : null));
+
+  const baseBusca = (q.trim() ? fuse.search(q.trim()).map((r) => r.item) : [...db.publicadores].sort(porNome)).filter(
     (p) => p.arquivado === arquivados,
   );
   const temDesig = (p: Publicador, d: FiltroDesig) => (d === 'pap' ? p.auxiliarPermanente : d === 'nb' ? !p.batizado : p.privilegios.includes(d));
@@ -185,7 +224,33 @@ export function Publicadores() {
     (ignorar === 'sexos' || !sexos.length || sexos.includes(p.sexo)) &&
     (ignorar === 'sits' || !sits.length || sits.includes(situacoes.get(p.id)!)) &&
     (ignorar === 'desigs' || !desigs.length || desigs.some((d) => temDesig(p, d)));
-  const lista = baseBusca.filter((p) => passa(p));
+  const filtrada = baseBusca.filter((p) => passa(p));
+  const lista = (() => {
+    if (!ordem) return filtrada;
+    const { col, dir } = ordem;
+    const nomeGrupo = (p: Publicador) => db.grupos.find((g) => g.id === p.grupoId)?.nome ?? '';
+    const chave = (p: Publicador): string | number => {
+      switch (col) {
+        case 'nome': return p.nome;
+        case 'sexo': return p.sexo;
+        case 'batizado': return p.batizado ? 1 : 0;
+        case 'desigs': return menorDesig(p);
+        case 'grupo': return nomeGrupo(p);
+        case 'telefone': return p.telefone.replace(/\D/g, '');
+        case 'endereco': return p.endereco;
+        case 'situacao': return situacoes.get(p.id) === 'ativo' ? 0 : 1;
+      }
+    };
+    const vazio = (v: string | number) => v === '';
+    return [...filtrada].sort((a, b) => {
+      const x = chave(a);
+      const y = chave(b);
+      // Vazios ficam sempre no fim, qualquer que seja o sentido.
+      if (vazio(x) !== vazio(y)) return vazio(x) ? 1 : -1;
+      const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'pt-BR', { numeric: true });
+      return c * dir || porNome(a, b);
+    });
+  })();
   const contar = (f: Faceta, pred: (p: Publicador) => boolean) => baseBusca.filter((p) => passa(p, f) && pred(p)).length;
 
   const nFiltros = grupos.length + desigs.length + sits.length + sexos.length + (arquivados ? 1 : 0);
@@ -389,6 +454,17 @@ export function Publicadores() {
                       <MapPin size={18} />
                     </a>
                   )}
+                  {p.telefone && urlWhatsapp(p.telefone) && (
+                    <a
+                      href={urlWhatsapp(p.telefone)!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex w-12 shrink-0 items-center justify-center border-l border-slate-100 text-green-600 active:bg-green-50 dark:border-slate-800 dark:text-green-400 dark:active:bg-slate-800"
+                      aria-label={`Chamar ${p.nome} no WhatsApp`}
+                    >
+                      <IconeWhatsapp size={18} />
+                    </a>
+                  )}
                   {p.telefone && (
                     <a
                       href={`tel:${p.telefone.replace(/[^\d+]/g, '')}`}
@@ -407,14 +483,14 @@ export function Publicadores() {
               <thead className="border-b border-indigo-100 dark:border-slate-800">
                 <tr>
                   <th className="th w-8" />
-                  <th className="th min-w-[200px]">Nome</th>
-                  <th className="th">Sexo</th>
-                  <th className="th" title="Batizado">Bat.</th>
-                  <th className="th">Designações</th>
-                  <th className="th">Grupo</th>
-                  <th className="th min-w-[130px]">Telefone</th>
-                  <th className="th min-w-[220px]">Endereço</th>
-                  <th className="th">Situação</th>
+                  <ThOrdenavel col="nome" ordem={ordem} onOrdenar={ordenarPor} className="min-w-[200px]">Nome</ThOrdenavel>
+                  <ThOrdenavel col="sexo" ordem={ordem} onOrdenar={ordenarPor}>Sexo</ThOrdenavel>
+                  <ThOrdenavel col="batizado" ordem={ordem} onOrdenar={ordenarPor} titulo="Ordenar por batizado">Bat.</ThOrdenavel>
+                  <ThOrdenavel col="desigs" ordem={ordem} onOrdenar={ordenarPor}>Designações</ThOrdenavel>
+                  <ThOrdenavel col="grupo" ordem={ordem} onOrdenar={ordenarPor}>Grupo</ThOrdenavel>
+                  <ThOrdenavel col="telefone" ordem={ordem} onOrdenar={ordenarPor} className="min-w-[130px]">Telefone</ThOrdenavel>
+                  <ThOrdenavel col="endereco" ordem={ordem} onOrdenar={ordenarPor} className="min-w-[220px]">Endereço</ThOrdenavel>
+                  <ThOrdenavel col="situacao" ordem={ordem} onOrdenar={ordenarPor}>Situação</ThOrdenavel>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 [&>tr:nth-child(even)]:bg-slate-50/70 dark:[&>tr:nth-child(even)]:bg-slate-800/20">

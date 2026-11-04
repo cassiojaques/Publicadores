@@ -404,3 +404,13 @@ describe('mapa', () => {
     expect(precisaLocalizar(novoPublicador())).toBe(false);
   });
 });
+
+describe('whatsapp', () => {
+  it('monta o link com o código do Brasil', async () => {
+    const { urlWhatsapp } = await import('../src/domain/contato');
+    expect(urlWhatsapp('(11) 98765-4321')).toBe('https://wa.me/5511987654321');
+    expect(urlWhatsapp('+55 11 98765-4321')).toBe('https://wa.me/5511987654321');
+    expect(urlWhatsapp('011 3456-7890')).toBe('https://wa.me/551134567890');
+    expect(urlWhatsapp('1234')).toBeNull();
+  });
+});

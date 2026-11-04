@@ -10,6 +10,7 @@ import {
   Users,
   UsersRound,
   UserX,
+  X,
 } from 'lucide-react';
 import { mesesComDados, useStore } from '../store/store';
 import type { Publicador } from '../domain/types';
@@ -289,6 +290,23 @@ export function Painel() {
         .map((x) => x.p),
     [stats.atencao, meses],
   );
+  // Fechar o aviso vale para esta lista; se mais alguém ficar inativo, ele volta.
+  const assinaturaNovos = novosInativos.map((p) => p.id).sort().join(',');
+  const [fechado, setFechado] = useState(() => {
+    try {
+      return localStorage.getItem('painel:avisoInativos') ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const fecharAviso = () => {
+    setFechado(assinaturaNovos);
+    try {
+      localStorage.setItem('painel:avisoInativos', assinaturaNovos);
+    } catch {
+      /* sem armazenamento: fecha só nesta sessão */
+    }
+  };
   const idsNovos = useMemo(() => new Set(novosInativos.map((p) => p.id)), [novosInativos]);
 
   // Aniversários de batismo no mês corrente.
@@ -339,27 +357,18 @@ export function Painel() {
         )}
       </div>
 
-      {novosInativos.length > 0 && (
-        <div className="card flex flex-wrap items-center gap-x-4 gap-y-2 border-rose-200 bg-gradient-to-r from-rose-50 to-orange-50 p-4 dark:border-rose-500/30 dark:from-rose-500/10 dark:to-orange-500/5">
-          <span className="rounded-full bg-rose-100 p-2 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300">
-            <UserX size={20} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold">
-              {novosInativos.length === 1 ? 'Ficou inativo' : 'Ficaram inativos'} neste mês ({novosInativos.length})
-            </p>
-            <div className="mt-1 flex flex-wrap gap-2">
-              {novosInativos.map((p) => (
-                <button
-                  key={p.id}
-                  className="rounded-full bg-white px-3 py-1 text-sm shadow-sm ring-1 ring-rose-200 hover:ring-rose-400 dark:bg-slate-900 dark:ring-rose-500/30"
-                  onClick={() => navegar({ nome: 'publicador', id: p.id })}
-                >
-                  {p.nome}
-                </button>
-              ))}
-            </div>
-          </div>
+      {novosInativos.length > 0 && assinaturaNovos !== fechado && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-rose-200 bg-rose-50 py-1.5 pl-3 pr-1.5 text-sm dark:border-rose-500/30 dark:bg-rose-500/10">
+          <UserX size={15} className="shrink-0 text-rose-600 dark:text-rose-300" />
+          <span className="font-medium">{novosInativos.length === 1 ? 'Ficou inativo' : 'Ficaram inativos'}:</span>
+          {novosInativos.map((p) => (
+            <button key={p.id} className="rounded-full bg-white px-2 py-0.5 text-xs ring-1 ring-rose-200 hover:ring-rose-400 dark:bg-slate-900 dark:ring-rose-500/30" onClick={() => navegar({ nome: 'publicador', id: p.id })}>
+              {p.nome}
+            </button>
+          ))}
+          <button className="ml-auto rounded p-1 text-slate-400 hover:bg-rose-100 hover:text-slate-700 dark:hover:bg-rose-500/20" title="Fechar" aria-label="Fechar aviso" onClick={fecharAviso}>
+            <X size={14} />
+          </button>
         </div>
       )}
 

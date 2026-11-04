@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import Fuse from 'fuse.js';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, ClipboardCopy, FileStack, FilterX, IdCard, MapPin, Phone, Plus, Search, SlidersHorizontal, Users, X } from 'lucide-react';
 import { mesesComDados, moverPublicador, useStore } from '../store/store';
 import { situacao, type Situacao } from '../domain/serviceYear';
@@ -11,6 +10,7 @@ import { salvarArquivoGerado } from '../storage/storage';
 import { urlMapa } from '../geo/geocodificar';
 import { urlWhatsapp } from '../domain/contato';
 import { IconeWhatsapp } from '../components/ui';
+import { normalizarNome } from '../import/relatorioCampo';
 
 const CORES_PRIV: Record<Privilegio | 'pap', string> = {
   anciao: 'border-indigo-500 bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
@@ -144,6 +144,32 @@ interface Ordem {
 
 const porNome = (a: Publicador, b: Publicador) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true });
 
+/**
+ * Busca exata (sem fuzzy), ignorando maiúsculas e acentos, só em nome e telefone.
+ * Cada palavra digitada precisa aparecer no nome; trechos com dígitos também valem para o telefone.
+ * Quem começa com o que foi digitado vem primeiro.
+ */
+function buscar(lista: Publicador[], q: string): Publicador[] {
+  const termo = normalizarNome(q);
+  if (!termo) return [...lista].sort(porNome);
+  const palavras = termo.split(' ');
+  const rank = (p: Publicador): number => {
+    const nome = normalizarNome(p.nome);
+    const fone = p.telefone.replace(/\D/g, '');
+    const ok = palavras.every((w) => {
+      const dig = w.replace(/\D/g, '');
+      return nome.includes(w) || (dig !== '' && fone.includes(dig));
+    });
+    if (!ok) return -1;
+    return nome.startsWith(termo) ? 0 : nome.split(' ').some((x) => x.startsWith(palavras[0])) ? 1 : 2;
+  };
+  return lista
+    .map((p) => ({ p, r: rank(p) }))
+    .filter((x) => x.r >= 0)
+    .sort((a, b) => a.r - b.r || porNome(a.p, b.p))
+    .map((x) => x.p);
+}
+
 /** Posição da designação mais "alta" do publicador (ancião primeiro); sem designação = vazio. */
 function menorDesig(p: Publicador): number | '' {
   const pos = [...PRIVILEGIOS.map((x, i) => (p.privilegios.includes(x.id) ? i : -1)), p.auxiliarPermanente ? PRIVILEGIOS.length : -1].filter((i) => i >= 0);
@@ -201,10 +227,6 @@ export function Publicadores() {
     () => new Map(db.publicadores.map((p) => [p.id, situacao(p, meses)])),
     [db.publicadores, meses],
   );
-  const fuse = useMemo(
-    () => new Fuse(db.publicadores, { keys: ['nome', 'telefone'], threshold: 0.35, ignoreLocation: true }),
-    [db.publicadores],
-  );
 
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
 
@@ -213,9 +235,7 @@ export function Publicadores() {
   const ordenarPor = (col: ColunaOrdem) =>
     setOrdem((o) => (o?.col !== col ? { col, dir: 1 } : o.dir === 1 ? { col, dir: -1 } : null));
 
-  const baseBusca = (q.trim() ? fuse.search(q.trim()).map((r) => r.item) : [...db.publicadores].sort(porNome)).filter(
-    (p) => p.arquivado === arquivados,
-  );
+  const baseBusca = buscar(db.publicadores, q).filter((p) => p.arquivado === arquivados);
   const temDesig = (p: Publicador, d: FiltroDesig) => (d === 'pap' ? p.auxiliarPermanente : d === 'nb' ? !p.batizado : p.privilegios.includes(d));
   type Faceta = 'grupos' | 'sexos' | 'sits' | 'desigs';
   /** Aplica os filtros, menos o de `ignorar` — assim cada botão mostra quantos resultaria ao marcá-lo. */

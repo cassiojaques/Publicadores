@@ -2,29 +2,14 @@ import { useMemo, useState, type KeyboardEvent } from 'react';
 import { Archive, ArchiveRestore, ArrowLeft, Download, Loader2, Pencil, Phone, Trash2, UserCheck, UserX, X } from 'lucide-react';
 import { definirAuxiliar, definirRelatorio, excluirRelatorio, mesesComDados, useStore } from '../store/store';
 import {
-  anosServicoComDados, creditosAprovados, formatarData, LIMITE_HORAS_COM_CREDITO, MESES_ANO_SERVICO, mesesDoAnoServico,
+  anosServicoComDados, creditosAprovados, LIMITE_HORAS_COM_CREDITO, MESES_ANO_SERVICO, mesesDoAnoServico,
   situacao, totaisAnoServico, totalComCreditos,
 } from '../domain/serviceYear';
-import { auxiliarNoMes, PRIVILEGIOS, type RelatorioMes } from '../domain/types';
-import { Avatar, BadgeSituacao, BadgesPrivilegio, Campo, Confirmar, SeletorAnoServico, Toggle } from '../components/ui';
+import { auxiliarNoMes, type RelatorioMes } from '../domain/types';
+import { Avatar, BadgeSituacao, BadgesPrivilegio, Confirmar, SeletorAnoServico, Toggle } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
 import { gerarS21Bytes } from '../pdf/s21';
 import { salvarArquivoGerado } from '../storage/storage';
-
-function Caixa({ marcado, rotulo }: { marcado: boolean; rotulo: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 text-sm">
-      <span
-        className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] font-bold ${
-          marcado ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-400'
-        }`}
-      >
-        {marcado && '✓'}
-      </span>
-      <span className={marcado ? 'font-medium' : 'text-slate-500'}>{rotulo}</span>
-    </span>
-  );
-}
 
 export function PublicadorDetalhe({ id }: { id: string }) {
   const { db, navegar, atualizar, toast } = useStore();
@@ -123,6 +108,7 @@ export function PublicadorDetalhe({ id }: { id: string }) {
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <h1 className="text-lg font-semibold md:text-xl">{p.nome}</h1>
             <BadgeSituacao s={situacao(p, mesesComDados(db))} />
+            <BadgesPrivilegio p={p} />
             {p.arquivado && <span className="badge bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">Arquivado</span>}
           </div>
           <p className="text-sm text-slate-500">
@@ -188,122 +174,11 @@ export function PublicadorDetalhe({ id }: { id: string }) {
           </div>
         </div>
 
-        {/* Celular: dados em campos curtos, só as designações que a pessoa tem */}
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 px-4 py-3 text-sm md:hidden">
-          <div>
-            <dt className="label">Nascimento</dt>
-            <dd>{formatarData(p.nascimento) || '—'}</dd>
-          </div>
-          <div>
-            <dt className="label">Batismo</dt>
-            <dd>{formatarData(p.batismo) || (p.batizado ? '—' : 'Não batizado')}</dd>
-          </div>
-          <div>
-            <dt className="label">Sexo</dt>
-            <dd>{p.sexo === 'M' ? 'Masculino' : 'Feminino'}</dd>
-          </div>
-          <div>
-            <dt className="label">Esperança</dt>
-            <dd>{p.esperanca === 'ungido' ? 'Ungido' : 'Outras ovelhas'}</dd>
-          </div>
-          <div className="col-span-2">
-            <dt className="label">Designações</dt>
-            <dd className="flex flex-wrap items-center gap-1">
-              {p.privilegios.length || p.auxiliarPermanente || !p.batizado ? <BadgesPrivilegio p={p} /> : <span className="text-slate-500">—</span>}
-            </dd>
-          </div>
-        </dl>
-
-        <div className="hidden gap-x-6 gap-y-2 px-5 py-4 text-sm md:grid md:grid-cols-2">
-          <p><span className="text-slate-500">Data de nascimento:</span> {formatarData(p.nascimento) || '—'}</p>
-          <div className="flex gap-4">
-            <Caixa marcado={p.sexo === 'M'} rotulo="Masculino" />
-            <Caixa marcado={p.sexo === 'F'} rotulo="Feminino" />
-          </div>
-          <p><span className="text-slate-500">Data de batismo:</span> {formatarData(p.batismo) || (p.batizado ? '—' : 'Não batizado')}</p>
-          <div className="flex gap-4">
-            <Caixa marcado={p.esperanca === 'outras_ovelhas'} rotulo="Outras ovelhas" />
-            <Caixa marcado={p.esperanca === 'ungido'} rotulo="Ungido" />
-          </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 sm:col-span-2">
-            {PRIVILEGIOS.map((x) => (
-              <Caixa key={x.id} marcado={p.privilegios.includes(x.id)} rotulo={x.label} />
-            ))}
-            <Caixa marcado={p.auxiliarPermanente} rotulo="Pioneiro auxiliar permanente" />
-          </div>
-        </div>
-
-        {/* Celular: um cartão por mês, com os campos lado a lado */}
-        <div className="divide-y divide-slate-100 border-t border-slate-200 dark:divide-slate-800 dark:border-slate-800 md:hidden">
-          {meses.map((mes, i) => {
-            const r = p.relatorios[mes];
-            const nome = MESES_ANO_SERVICO[i];
-            const campo = (c: 'estudos' | 'horas' | 'creditos', rotulo: string) => (
-              <Campo rotulo={rotulo}>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  className="input px-2 py-1.5 text-center tabular-nums"
-                  value={r?.[c] ?? ''}
-                  onChange={(e) => editarMes(mes, c, e.target.value === '' ? null : Number(e.target.value))}
-                />
-              </Campo>
-            );
-            return (
-              <div key={mes} className={`space-y-2 px-4 py-3 ${r?.participou ? '' : 'bg-slate-50/60 dark:bg-slate-800/20'}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{nome}</span>
-                  <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                      <Toggle checked={!!r?.participou} onChange={(e) => editarMes(mes, 'participou', e.target.checked)} aria-label={`Participou em ${nome}`} />
-                      Participou
-                    </label>
-                    {r && (
-                      <button
-                        className="rounded p-1 text-slate-300 hover:bg-rose-50 hover:text-rose-600 dark:text-slate-600"
-                        aria-label={`Excluir o relatório de ${nome}`}
-                        onClick={() => atualizar((d) => excluirRelatorio(d, id, mes))}
-                      >
-                        <X size={16} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className={`grid gap-2 ${pioneiro ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                  {campo('estudos', 'Estudos')}
-                  {campo('horas', 'Horas')}
-                  {pioneiro && campo('creditos', 'Créditos')}
-                </div>
-                <div className="flex items-center gap-3">
-                  <label className="flex shrink-0 items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                    <Toggle checked={r ? r.auxiliar : auxiliarNoMes(p, mes)} onChange={(e) => atualizar((d) => definirAuxiliar(d, id, mes, e.target.checked))} aria-label={`Pioneiro auxiliar em ${nome}`} />
-                    P. aux.
-                  </label>
-                  <input className="input min-w-0 flex-1 py-1.5" placeholder="Observações" value={r?.obs ?? ''} onChange={(e) => editarMes(mes, 'obs', e.target.value)} aria-label={`Observações de ${nome}`} />
-                </div>
-                {pioneiro && !!r?.creditos && (
-                  <p className="text-xs text-slate-500">
-                    Créditos aprovados <b className="tabular-nums">{creditosAprovados(r)}</b> · total com créditos <b className="tabular-nums">{totalComCreditos(r)}</b>
-                  </p>
-                )}
-              </div>
-            );
-          })}
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 bg-slate-50 px-4 py-3 text-sm font-semibold dark:bg-slate-900/60">
-            <span>Total do ano</span>
-            <span className="tabular-nums">
-              {tot.mesesParticipou} {tot.mesesParticipou === 1 ? 'mês' : 'meses'} · {tot.horas || 0} h
-              {pioneiro && !!tot.totalComCreditos && <> · {tot.totalComCreditos} c/ créditos</>}
-            </span>
-          </div>
-        </div>
-
-        <div className="hidden overflow-x-auto md:block">
+        <div className="overflow-x-auto">
           <table className="w-full border-t border-slate-200 text-sm dark:border-slate-800">
             <thead>
               <tr className="divide-x divide-slate-200 dark:divide-slate-800">
-                <th className="th w-32">Ano de serviço {ano}</th>
+                <th className="th sticky left-0 z-10 w-28 !bg-indigo-50 dark:!bg-slate-800 md:w-32">Ano de serviço {ano}</th>
                 <th className="th w-24 text-center">Participou</th>
                 <th className="th w-24 text-center">Estudos</th>
                 <th className="th w-24 text-center">Pion. aux.</th>
@@ -323,7 +198,7 @@ export function PublicadorDetalhe({ id }: { id: string }) {
                 const r = p.relatorios[mes];
                 return (
                   <tr key={mes} className="divide-x divide-slate-200 dark:divide-slate-800">
-                    <td className="td">
+                    <td className="td sticky left-0 z-10 bg-white dark:bg-slate-900">
                       <span className="flex items-center justify-between gap-1">
                         {MESES_ANO_SERVICO[i]}
                         {r && (
@@ -361,7 +236,7 @@ export function PublicadorDetalhe({ id }: { id: string }) {
             </tbody>
             <tfoot className="border-t-2 border-slate-300 bg-slate-50 font-semibold dark:border-slate-700 dark:bg-slate-900/60">
               <tr className="divide-x divide-slate-200 dark:divide-slate-800">
-                <td className="td">Total</td>
+                <td className="td sticky left-0 z-10 bg-slate-50 dark:bg-slate-900">Total</td>
                 <td className="td text-center tabular-nums">{tot.mesesParticipou}</td>
                 <td className="td" />
                 <td className="td" />

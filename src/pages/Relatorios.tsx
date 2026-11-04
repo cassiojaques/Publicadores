@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarPlus, ChevronLeft, ChevronRight, ClipboardCopy, ClipboardList, FileInput, ImageDown, Loader2, Search, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCopy, ClipboardList, FileInput, FileText, ImageDown, Loader2, Search, Trash2, X } from 'lucide-react';
 import {
   definirAuxiliar, definirRelatorio, excluirMes, excluirRelatorio, garantirMes, mesesComDados, useStore,
 } from '../store/store';
@@ -149,13 +149,12 @@ function ListaMeses({
     const esperados = linhas.filter((l) => l.status !== 'inativo').length;
     const relatou = linhas.filter((l) => l.status === 'relatou').length;
     const faltam = linhas.filter((l) => l.status === 'falta').length;
-    const pct = esperados ? Math.round((relatou / esperados) * 100) : 100;
-    return { esperados, relatou, faltam, pct };
+    return { esperados, relatou, faltam };
   };
 
   // O mês que está sendo entregue agora fica fixo à esquerda, fora da rolagem, em destaque.
   const destaque = () => {
-    const { esperados, relatou, faltam, pct } = progresso(aRelatar);
+    const { esperados, relatou, faltam } = progresso(aRelatar);
     const sel = aRelatar === atual;
     return (
       <button
@@ -166,23 +165,34 @@ function ListaMeses({
       >
         <span className="block text-[11px] font-semibold uppercase tracking-wide text-indigo-200">Mês a relatar agora</span>
         <span className="mt-0.5 block text-xl font-bold">{nomeMes(aRelatar)}</span>
-        <span className="mt-3 block h-2 overflow-hidden rounded-full bg-indigo-400/40">
-          <span className="block h-full rounded-full bg-white" style={{ width: `${pct}%` }} />
+        <span className="mt-3 flex items-center gap-3">
+          {faltam > 0 ? (
+            <span className="flex items-baseline gap-2">
+              <span className="text-lg font-semibold text-indigo-100">{faltam === 1 ? 'Falta' : 'Faltam'}</span>
+              <span className="text-4xl font-bold leading-none tabular-nums">{faltam}</span>
+              <span className="text-lg font-semibold text-indigo-100">{faltam === 1 ? 'relatório' : 'relatórios'}</span>
+            </span>
+          ) : (
+            <>
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-400 text-emerald-950">
+                <CheckCircle2 size={24} />
+              </span>
+              <span className="leading-tight">
+                <span className="block text-xl font-bold">Completo</span>
+                <span className="block text-xs font-medium text-indigo-100">todos relataram</span>
+              </span>
+            </>
+          )}
         </span>
-        <span className="mt-2 flex items-center justify-between gap-2 text-sm">
-          <span className="text-indigo-100">
-            {relatou} de {esperados} relataram
-          </span>
-          <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-indigo-700">
-            {faltam > 0 ? `faltam ${faltam}` : 'completo'}
-          </span>
+        <span className="mt-2 block text-xs text-indigo-100">
+          {relatou} de {esperados} relataram
         </span>
       </button>
     );
   };
 
   const item = (m: string) => {
-    const { esperados, relatou, faltam, pct } = progresso(m);
+    const { esperados, relatou, faltam } = progresso(m);
     const sel = m === atual;
     const futuro = m > aRelatar;
     return (
@@ -200,20 +210,28 @@ function ListaMeses({
         <span className="flex items-center justify-between gap-2 text-sm">
           <span className={sel ? 'font-semibold text-indigo-700 dark:text-indigo-300' : 'font-medium'}>{nomeMes(m)}</span>
         </span>
-        <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-          <span className="block h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
-        </span>
-        <span className="mt-1.5 flex items-center justify-between gap-2 text-xs text-slate-500">
-          <span>
-            {relatou}/{esperados}
-          </span>
+        <span className="mt-2 flex items-center gap-2">
           {futuro ? (
             <span className="badge bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">futuro</span>
           ) : faltam > 0 ? (
-            <span className="badge bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">faltam {faltam}</span>
+            <>
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300">
+                <AlertTriangle size={15} />
+              </span>
+              <span className="text-2xl font-bold leading-none tabular-nums text-rose-600 dark:text-rose-300">{faltam}</span>
+              <span className="text-xs text-slate-500">{faltam === 1 ? 'falta' : 'faltam'}</span>
+            </>
           ) : (
-            <span className="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">completo</span>
+            <>
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+                <CheckCircle2 size={16} />
+              </span>
+              <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-300">Completo</span>
+            </>
           )}
+        </span>
+        <span className="mt-1 block text-[11px] text-slate-400">
+          {relatou} de {esperados} relataram
         </span>
       </button>
     );
@@ -325,6 +343,7 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
     }
   }
 
+  const [s1, setS1] = useState(false);
   const [gerandoImagem, setGerandoImagem] = useState(false);
   /** PNG com quem falta, por grupo. Respeita o filtro de grupo da tabela. */
   async function exportarImagemFaltantes() {
@@ -375,41 +394,35 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="card p-4 md:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">Relatório de {nomeMes(mes)}</h2>
-            <p className="text-xs text-slate-500">
-              Ano de serviço {anoServicoDe(mes)} (set/{anoServicoDe(mes) - 1} – ago/{anoServicoDe(mes)}) ·{' '}
-              {importacao?.arquivo && importacao.arquivo !== '(manual)'
-                ? `importado em ${new Date(importacao.data).toLocaleDateString('pt-BR')} (${importacao.arquivo})`
-                : 'preenchido manualmente'}
-            </p>
-          </div>
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
-            <button className="btn-outline" onClick={copiarFaltantes} disabled={conta('falta') === 0}>
-              <ClipboardCopy size={16} /> Copiar<span className="hidden sm:inline"> quem falta</span>
-            </button>
-            <button
-              className="btn-outline"
-              onClick={exportarImagemFaltantes}
-              disabled={conta('falta') === 0 || gerandoImagem}
-              title="Imagem com quem falta, separado por grupo (segue o filtro de grupo)"
-            >
-              {gerandoImagem ? <Loader2 size={16} className="animate-spin" /> : <ImageDown size={16} />} Imagem<span className="hidden sm:inline"> de quem falta</span>
-            </button>
-            <button className="btn-ghost col-span-2 text-rose-600 sm:col-span-1" onClick={onExcluirMes} title="Excluir o mês inteiro">
-              <Trash2 size={16} /> Excluir mês
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-2 md:gap-3 xl:grid-cols-3">
-          <Resumo titulo="Publicadores" t={totais.publicadores} />
-          <Resumo titulo="Pioneiros auxiliares" t={totais.auxiliares} horas />
-          <Resumo titulo="Pioneiros regulares" t={totais.regulares} horas />
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="text-xs text-slate-500">
+          {nomeMes(mes)} · ano de serviço {anoServicoDe(mes)} ·{' '}
+          {importacao?.arquivo && importacao.arquivo !== '(manual)'
+            ? `importado em ${new Date(importacao.data).toLocaleDateString('pt-BR')} (${importacao.arquivo})`
+            : 'preenchido manualmente'}
+        </p>
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+          <button className="btn-primary" onClick={() => setS1(true)} title="Totais do mês para o relatório da congregação">
+            <FileText size={16} /> S-1
+          </button>
+          <button className="btn-outline" onClick={copiarFaltantes} disabled={conta('falta') === 0}>
+            <ClipboardCopy size={16} /> Copiar<span className="hidden sm:inline"> quem falta</span>
+          </button>
+          <button
+            className="btn-outline"
+            onClick={exportarImagemFaltantes}
+            disabled={conta('falta') === 0 || gerandoImagem}
+            title="Imagem com quem falta, separado por grupo (segue o filtro de grupo)"
+          >
+            {gerandoImagem ? <Loader2 size={16} className="animate-spin" /> : <ImageDown size={16} />} Imagem<span className="hidden sm:inline"> de quem falta</span>
+          </button>
+          <button className="btn-ghost text-rose-600" onClick={onExcluirMes} title="Excluir o mês inteiro">
+            <Trash2 size={16} /> Excluir mês
+          </button>
         </div>
       </div>
+
+      <ModalS1 aberto={s1} onFechar={() => setS1(false)} mes={mes} totais={totais} />
 
       <div className="card overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3 dark:border-slate-800">
@@ -481,16 +494,65 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
   );
 }
 
-function Resumo({ titulo, t, horas }: { titulo: string; t: { relatorios: number; estudos: number; horas: number }; horas?: boolean }) {
+type TotaisS1 = ReturnType<typeof totaisDoMes>;
+
+/** Totais do mês para preencher o S-1, com um botão de copiar ao lado de cada número. */
+function ModalS1({ aberto, onFechar, mes, totais }: { aberto: boolean; onFechar: () => void; mes: string; totais: TotaisS1 }) {
+  const { toast } = useStore();
+  const [copiado, setCopiado] = useState<string | null>(null);
+  async function copiar(id: string, valor: number, rotulo: string) {
+    try {
+      await navigator.clipboard.writeText(String(valor));
+      setCopiado(id);
+      setTimeout(() => setCopiado((c) => (c === id ? null : c)), 1500);
+    } catch {
+      toast(`Não foi possível copiar ${rotulo}.`, 'erro');
+    }
+  }
+  const grupos: { chave: keyof TotaisS1; titulo: string; horas: boolean }[] = [
+    { chave: 'publicadores', titulo: 'Publicadores', horas: false },
+    { chave: 'auxiliares', titulo: 'Pioneiros auxiliares', horas: true },
+    { chave: 'regulares', titulo: 'Pioneiros regulares', horas: true },
+  ];
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50 xl:block">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{titulo}</p>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm xl:mt-1">
-        <span><b className="text-lg tabular-nums">{t.relatorios}</b> relatórios</span>
-        <span><b className="text-lg tabular-nums">{t.estudos}</b> estudos</span>
-        {horas && <span><b className="text-lg tabular-nums">{t.horas}</b> horas</span>}
+    <Modal aberto={aberto} titulo={`S-1 · ${nomeMes(mes)}`} largura="max-w-md" onFechar={onFechar} rodape={<button className="btn-ghost" onClick={onFechar}>Fechar</button>}>
+      <div className="space-y-3">
+        {grupos.map(({ chave, titulo, horas }) => {
+          const t = totais[chave];
+          const campos = [
+            { id: 'relatorios', rotulo: 'Relatórios', valor: t.relatorios },
+            { id: 'estudos', rotulo: 'Estudos', valor: t.estudos },
+            ...(horas ? [{ id: 'horas', rotulo: 'Horas', valor: t.horas }] : []),
+          ];
+          return (
+            <div key={chave} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{titulo}</p>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {campos.map((c) => {
+                  const id = `${chave}-${c.id}`;
+                  return (
+                    <div key={id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50">
+                      <span className="leading-tight">
+                        <span className="block text-2xl font-semibold tabular-nums">{c.valor}</span>
+                        <span className="block text-xs text-slate-500">{c.rotulo}</span>
+                      </span>
+                      <button
+                        className="rounded-md p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-slate-700"
+                        title={`Copiar ${c.valor}`}
+                        aria-label={`Copiar ${c.rotulo.toLowerCase()} de ${titulo.toLowerCase()}`}
+                        onClick={() => copiar(id, c.valor, c.rotulo.toLowerCase())}
+                      >
+                        {copiado === id ? <Check size={16} className="text-emerald-600" /> : <ClipboardCopy size={16} />}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
-    </div>
+    </Modal>
   );
 }
 

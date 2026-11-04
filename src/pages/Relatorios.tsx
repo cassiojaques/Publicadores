@@ -5,7 +5,8 @@ import {
 } from '../store/store';
 import { anoServicoDe, mesRelatorioAtual, nomeMes } from '../domain/serviceYear';
 import { faltantesPorGrupo, statusDoMes, textoFaltantes, totaisDoMes, type LinhaMes, type StatusMes } from '../domain/relatorios';
-import { auxiliarNoMes, type RelatorioMes } from '../domain/types';
+import { auxiliarNoMes, type RelatorioMes, type TipoReuniao } from '../domain/types';
+import { formatarMedia, mediaMes, TIPOS_REUNIAO } from '../domain/assistencia';
 import { Avatar, BadgesPrivilegio, Campo, Confirmar, Modal, Toggle, Vazio } from '../components/ui';
 import { gerarImagemFaltantes } from '../imagem/faltantes';
 import { salvarArquivoGerado } from '../storage/storage';
@@ -406,7 +407,7 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
             <FileText size={16} /> S-1
           </button>
           <button className="btn-outline" onClick={copiarFaltantes} disabled={conta('falta') === 0}>
-            <ClipboardCopy size={16} /> Copiar<span className="hidden sm:inline"> quem falta</span>
+            <ClipboardCopy size={16} /> Copiar<span className="hidden sm:inline"> nome dos que faltam</span>
           </button>
           <button
             className="btn-outline"
@@ -414,7 +415,8 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
             disabled={conta('falta') === 0 || gerandoImagem}
             title="Imagem com quem falta, separado por grupo (segue o filtro de grupo)"
           >
-            {gerandoImagem ? <Loader2 size={16} className="animate-spin" /> : <ImageDown size={16} />} Imagem<span className="hidden sm:inline"> de quem falta</span>
+            {gerandoImagem ? <Loader2 size={16} className="animate-spin" /> : <ImageDown size={16} />} <span className="sm:hidden">Imagem</span>
+            <span className="max-sm:hidden">Gerar imagem dos que faltam</span>
           </button>
           <button className="btn-ghost text-rose-600" onClick={onExcluirMes} title="Excluir o mês inteiro">
             <Trash2 size={16} /> Excluir mês
@@ -422,7 +424,7 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
         </div>
       </div>
 
-      <ModalS1 aberto={s1} onFechar={() => setS1(false)} mes={mes} totais={totais} />
+      <ModalS1 aberto={s1} onFechar={() => setS1(false)} mes={mes} totais={totais} ativos={linhas.filter((l) => l.status !== 'inativo').length} />
 
       <div className="card overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3 dark:border-slate-800">
@@ -495,62 +497,91 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
 }
 
 type TotaisS1 = ReturnType<typeof totaisDoMes>;
+type CampoS1 = { id: string; rotulo: string; texto: string | null };
 
 /** Totais do mês para preencher o S-1, com um botão de copiar ao lado de cada número. */
-function ModalS1({ aberto, onFechar, mes, totais }: { aberto: boolean; onFechar: () => void; mes: string; totais: TotaisS1 }) {
-  const { toast } = useStore();
+function ModalS1({ aberto, onFechar, mes, totais, ativos }: { aberto: boolean; onFechar: () => void; mes: string; totais: TotaisS1; ativos: number }) {
+  const { db, toast, navegar } = useStore();
   const [copiado, setCopiado] = useState<string | null>(null);
-  async function copiar(id: string, valor: number, rotulo: string) {
+  async function copiar(id: string, texto: string, rotulo: string) {
     try {
-      await navigator.clipboard.writeText(String(valor));
+      await navigator.clipboard.writeText(texto);
       setCopiado(id);
       setTimeout(() => setCopiado((c) => (c === id ? null : c)), 1500);
     } catch {
       toast(`Não foi possível copiar ${rotulo}.`, 'erro');
     }
   }
-  const grupos: { chave: keyof TotaisS1; titulo: string; horas: boolean }[] = [
-    { chave: 'publicadores', titulo: 'Publicadores', horas: false },
-    { chave: 'auxiliares', titulo: 'Pioneiros auxiliares', horas: true },
-    { chave: 'regulares', titulo: 'Pioneiros regulares', horas: true },
+  const n = (v: number) => String(v);
+  const assistencia = (tipo: TipoReuniao): CampoS1[] => {
+    const a = db.assistencia[mes]?.[tipo];
+    const media = mediaMes(a);
+    return [
+      { id: 'reunioes', rotulo: 'Reuniões', texto: a?.reunioes != null ? n(a.reunioes) : null },
+      { id: 'total', rotulo: 'Assistência total', texto: a?.total != null ? n(a.total) : null },
+      { id: 'media', rotulo: 'Média por reunião', texto: media !== null ? formatarMedia(media) : null },
+    ];
+  };
+  const quadros: { chave: string; titulo: string; campos: CampoS1[] }[] = [
+    { chave: 'ativos', titulo: 'Publicadores ativos', campos: [{ id: 'ativos', rotulo: 'Ativos no mês', texto: n(ativos) }] },
+    {
+      chave: 'publicadores',
+      titulo: 'Publicadores',
+      campos: [
+        { id: 'relatorios', rotulo: 'Relatórios', texto: n(totais.publicadores.relatorios) },
+        { id: 'estudos', rotulo: 'Estudos', texto: n(totais.publicadores.estudos) },
+      ],
+    },
+    ...(['auxiliares', 'regulares'] as const).map((chave) => ({
+      chave,
+      titulo: chave === 'auxiliares' ? 'Pioneiros auxiliares' : 'Pioneiros regulares',
+      campos: [
+        { id: 'relatorios', rotulo: 'Relatórios', texto: n(totais[chave].relatorios) },
+        { id: 'estudos', rotulo: 'Estudos', texto: n(totais[chave].estudos) },
+        { id: 'horas', rotulo: 'Horas', texto: n(totais[chave].horas) },
+      ],
+    })),
+    ...TIPOS_REUNIAO.map(({ id, rotulo }) => ({ chave: `assist-${id}`, titulo: `Assistência · ${rotulo.replace('Reunião do ', '')}`, campos: assistencia(id) })),
   ];
+  const semAssistencia = TIPOS_REUNIAO.every(({ id }) => !db.assistencia[mes]?.[id]);
   return (
     <Modal aberto={aberto} titulo={`S-1 · ${nomeMes(mes)}`} largura="max-w-md" onFechar={onFechar} rodape={<button className="btn-ghost" onClick={onFechar}>Fechar</button>}>
       <div className="space-y-3">
-        {grupos.map(({ chave, titulo, horas }) => {
-          const t = totais[chave];
-          const campos = [
-            { id: 'relatorios', rotulo: 'Relatórios', valor: t.relatorios },
-            { id: 'estudos', rotulo: 'Estudos', valor: t.estudos },
-            ...(horas ? [{ id: 'horas', rotulo: 'Horas', valor: t.horas }] : []),
-          ];
-          return (
-            <div key={chave} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{titulo}</p>
-              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {campos.map((c) => {
-                  const id = `${chave}-${c.id}`;
-                  return (
-                    <div key={id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50">
-                      <span className="leading-tight">
-                        <span className="block text-2xl font-semibold tabular-nums">{c.valor}</span>
-                        <span className="block text-xs text-slate-500">{c.rotulo}</span>
-                      </span>
-                      <button
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-slate-700"
-                        title={`Copiar ${c.valor}`}
-                        aria-label={`Copiar ${c.rotulo.toLowerCase()} de ${titulo.toLowerCase()}`}
-                        onClick={() => copiar(id, c.valor, c.rotulo.toLowerCase())}
-                      >
-                        {copiado === id ? <Check size={16} className="text-emerald-600" /> : <ClipboardCopy size={16} />}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+        {quadros.map(({ chave, titulo, campos }) => (
+          <div key={chave} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{titulo}</p>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {campos.map((c) => {
+                const id = `${chave}-${c.id}`;
+                return (
+                  <div key={id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50">
+                    <span className="leading-tight">
+                      <span className={`block text-2xl font-semibold tabular-nums ${c.texto === null ? 'text-slate-300 dark:text-slate-600' : ''}`}>{c.texto ?? '—'}</span>
+                      <span className="block text-xs text-slate-500">{c.rotulo}</span>
+                    </span>
+                    <button
+                      className="rounded-md p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-30 disabled:hover:bg-transparent dark:hover:bg-slate-700"
+                      title={c.texto === null ? 'Sem dado' : `Copiar ${c.texto}`}
+                      aria-label={`Copiar ${c.rotulo.toLowerCase()} de ${titulo.toLowerCase()}`}
+                      disabled={c.texto === null}
+                      onClick={() => c.texto !== null && copiar(id, c.texto, c.rotulo.toLowerCase())}
+                    >
+                      {copiado === id ? <Check size={16} className="text-emerald-600" /> : <ClipboardCopy size={16} />}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        ))}
+        {semAssistencia && (
+          <p className="text-xs text-slate-500">
+            A assistência vem do registro S-88.{' '}
+            <button className="text-indigo-600 underline dark:text-indigo-300" onClick={() => { onFechar(); navegar({ nome: 'assistencia' }); }}>
+              Preencher em Assistência
+            </button>
+          </p>
+        )}
       </div>
     </Modal>
   );

@@ -2,11 +2,11 @@ import { useMemo, useState } from 'react';
 import {
   DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core';
-import { Download, GripVertical, Loader2, MoreHorizontal, Pencil, Plus, Trash2, UserPlus, UsersRound } from 'lucide-react';
+import { ChevronDown, Download, GripVertical, IdCard, Loader2, MoreHorizontal, Pencil, Plus, Trash2, UserPlus, UsersRound } from 'lucide-react';
 import { mesesComDados, moverPublicador, removerGrupo, useStore } from '../store/store';
 import { situacao } from '../domain/serviceYear';
 import { novoId, type Grupo, type Publicador } from '../domain/types';
-import { BadgesPrivilegio, Confirmar, Modal, Toggle, Vazio } from '../components/ui';
+import { BadgesPrivilegio, Confirmar, Folha, Modal, Toggle, Vazio } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
 import { gerarPdfGrupos, type FiltroSituacao } from '../pdf/grupos';
 
@@ -38,7 +38,9 @@ function Chip({ p, funcao, arrastando }: { p: Publicador; funcao?: 'S' | 'A'; ar
   );
 }
 
-function ChipArrastavel({ p, funcao, onAbrir }: { p: Publicador; funcao?: 'S' | 'A'; onAbrir: () => void }) {
+const ehCelular = () => typeof window !== 'undefined' && !window.matchMedia('(min-width: 768px)').matches;
+
+function ChipArrastavel({ p, funcao, onAbrir, onToque }: { p: Publicador; funcao?: 'S' | 'A'; onAbrir: () => void; onToque: () => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: p.id });
   return (
     <div
@@ -46,7 +48,9 @@ function ChipArrastavel({ p, funcao, onAbrir }: { p: Publicador; funcao?: 'S' | 
       {...attributes}
       {...listeners}
       onDoubleClick={onAbrir}
-      className={`cursor-grab active:cursor-grabbing ${isDragging ? 'opacity-30' : ''}`}
+      // No celular arrastar atrapalha a rolagem: o toque abre um painel com as ações.
+      onClick={() => ehCelular() && onToque()}
+      className={`cursor-grab active:cursor-grabbing max-md:py-1 ${isDragging ? 'opacity-30' : ''}`}
       title="Arraste para outro grupo · duplo clique para abrir"
     >
       <Chip p={p} funcao={funcao} />
@@ -61,6 +65,7 @@ function Coluna({
   onRenomear,
   onExcluir,
   onAdicionar,
+  onToque,
 }: {
   grupo: Grupo | null;
   membros: Publicador[];
@@ -68,10 +73,13 @@ function Coluna({
   onRenomear?: () => void;
   onExcluir?: () => void;
   onAdicionar: () => void;
+  onToque: (p: Publicador) => void;
 }) {
   const { db, atualizar, navegar } = useStore();
   const { setNodeRef, isOver } = useDroppable({ id: grupo?.id ?? SEM_GRUPO });
   const [menu, setMenu] = useState(false);
+  // No celular os grupos começam recolhidos, para a tela não virar uma lista infinita.
+  const [aberta, setAberta] = useState(() => !ehCelular());
   const irmaos = membros.filter((p) => p.sexo === 'M');
   const nomeDe = (id: string | null) => db.publicadores.find((p) => p.id === id);
 
@@ -97,14 +105,22 @@ function Coluna({
       } ${grupo ? '' : 'border-dashed'}`}
     >
       <div className={`flex items-center gap-1 rounded-t-xl border-b px-3 py-2 dark:border-slate-800 ${grupo ? 'border-indigo-200/70 bg-gradient-to-r from-indigo-100 to-violet-100/70 dark:from-indigo-500/10 dark:to-violet-500/10' : 'border-slate-200 bg-slate-50 dark:bg-slate-800/40'}`}>
-        <h3 className="flex-1 truncate font-semibold text-indigo-950 dark:text-indigo-100">{grupo?.nome ?? 'Sem grupo'}</h3>
-        <span className="badge bg-white text-indigo-700 ring-1 ring-indigo-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-0">{membros.length}</span>
-        <button className="btn-ghost p-1" onClick={onAdicionar} title="Novo publicador neste grupo" aria-label="Novo publicador neste grupo">
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left md:pointer-events-none"
+          onClick={() => setAberta(!aberta)}
+          aria-expanded={aberta}
+        >
+          <ChevronDown size={16} className={`shrink-0 text-indigo-500 transition md:hidden ${aberta ? '' : '-rotate-90'}`} />
+          <h3 className="truncate font-semibold text-indigo-950 dark:text-indigo-100">{grupo?.nome ?? 'Sem grupo'}</h3>
+          <span className="badge bg-white text-indigo-700 ring-1 ring-indigo-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-0">{membros.length}</span>
+        </button>
+        <button className="btn-ghost p-1.5 md:p-1" onClick={onAdicionar} title="Novo publicador neste grupo" aria-label="Novo publicador neste grupo">
           <UserPlus size={16} />
         </button>
         {grupo && (
           <div className="relative">
-            <button className="btn-ghost p-1" onClick={() => setMenu(!menu)} onBlur={() => setTimeout(() => setMenu(false), 150)} aria-label="Opções do grupo">
+            <button className="btn-ghost p-1.5 md:p-1" onClick={() => setMenu(!menu)} onBlur={() => setTimeout(() => setMenu(false), 150)} aria-label="Opções do grupo">
               <MoreHorizontal size={16} />
             </button>
             {menu && (
@@ -121,8 +137,15 @@ function Coluna({
         )}
       </div>
 
+      {grupo && !aberta && (
+        <p className="truncate px-3 py-2 text-xs text-slate-500 md:hidden">
+          Sup.: <b className="font-medium text-slate-700 dark:text-slate-300">{nomeDe(grupo.superintendenteId)?.nome ?? '—'}</b> · Aj.:{' '}
+          <b className="font-medium text-slate-700 dark:text-slate-300">{nomeDe(grupo.ajudanteId)?.nome ?? '—'}</b>
+        </p>
+      )}
+
       {grupo && (
-        <div className="space-y-1 border-b border-slate-200 px-3 py-2 text-sm dark:border-slate-800">
+        <div className={`space-y-2 border-b border-slate-200 px-3 py-2 text-sm dark:border-slate-800 md:space-y-1 ${aberta ? '' : 'max-md:hidden'}`}>
           {(
             [
               ['superintendenteId', 'Superintendente'],
@@ -131,7 +154,7 @@ function Coluna({
           ).map(([campo, rotulo]) => (
             <label key={campo} className="flex items-center gap-2">
               <span className="w-12 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400" title={rotulo}>{rotulo === 'Superintendente' ? 'Sup.' : 'Aj.'}</span>
-              <select className="input px-2 py-0.5" value={grupo[campo] ?? ''} onChange={(e) => setFuncao(campo, e.target.value)}>
+              <select className="input px-2 py-1.5 md:py-0.5" value={grupo[campo] ?? ''} onChange={(e) => setFuncao(campo, e.target.value)}>
                 <option value="">— definir —</option>
                 {irmaos.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -147,30 +170,31 @@ function Coluna({
         </div>
       )}
 
-      <div className="flex min-h-[48px] flex-1 flex-col gap-1 rounded-b-xl bg-slate-50/60 p-2 dark:bg-transparent">
+      <div className={`min-h-[48px] flex-1 flex-col gap-1 rounded-b-xl bg-slate-50/60 p-2 dark:bg-transparent ${aberta ? 'flex' : 'max-md:hidden md:flex'}`}>
         {ordenados.map((p) => {
           const funcao = grupo?.superintendenteId === p.id ? 'S' : grupo?.ajudanteId === p.id ? 'A' : undefined;
           const casa = !destaque || p.nome.toLowerCase().includes(destaque.toLowerCase());
           return (
             <div key={p.id} className={casa ? '' : 'opacity-30'}>
-              <ChipArrastavel p={p} funcao={funcao} onAbrir={() => navegar({ nome: 'publicador', id: p.id })} />
+              <ChipArrastavel p={p} funcao={funcao} onAbrir={() => navegar({ nome: 'publicador', id: p.id })} onToque={() => onToque(p)} />
             </div>
           );
         })}
-        {membros.length === 0 && <p className="py-2 text-center text-xs text-slate-400">Arraste publicadores para cá</p>}
+        {membros.length === 0 && <p className="py-2 text-center text-xs text-slate-400">Nenhum publicador <span className="hidden md:inline">· arraste para cá</span></p>}
       </div>
     </div>
   );
 }
 
 export function Grupos() {
-  const { db, atualizar, toast } = useStore();
+  const { db, atualizar, toast, navegar } = useStore();
   const [arrastado, setArrastado] = useState<string | null>(null);
   const [nomeModal, setNomeModal] = useState<{ id: string | null; nome: string } | null>(null);
   const [excluir, setExcluir] = useState<Grupo | null>(null);
   const [novoEm, setNovoEm] = useState<string | null | undefined>(undefined);
   const [destaque, setDestaque] = useState('');
   const [gerando, setGerando] = useState(false);
+  const [mover, setMover] = useState<Publicador | null>(null);
   const [filtroSit, setFiltroSit] = useState<FiltroSituacao>(() => {
     try {
       const v = localStorage.getItem('publicadores.grupos.situacao');
@@ -252,42 +276,46 @@ export function Grupos() {
   const semGrupo = porGrupo.get(SEM_GRUPO) ?? [];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Grupos de campo</h1>
-          <p className="text-sm text-slate-500">Arraste os publicadores entre os grupos para mudá-los.</p>
+    <div className="space-y-3 md:space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold md:text-2xl">Grupos de campo</h1>
+          <p className="text-sm text-slate-500">
+            <span className="hidden md:inline">Arraste os publicadores entre os grupos para mudá-los.</span>
+            <span className="md:hidden">Toque num publicador para movê-lo ou abrir o cartão.</span>
+          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-full border border-slate-300 p-0.5 dark:border-slate-700" role="group" aria-label="Situação" title="Filtra aqui e no PDF">
-            {OPCOES_SIT.map((o) => (
-              <button
-                key={o.v}
-                type="button"
-                aria-pressed={filtroSit === o.v}
-                onClick={() => mudarFiltroSit(o.v)}
-                className={`rounded-full px-3 py-0.5 text-xs font-medium transition ${
-                  filtroSit === o.v
-                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
-                    : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-300 dark:hover:bg-slate-800'
-                }`}
-              >
-                {o.t}
-              </button>
-            ))}
-          </div>
-          <label className="flex items-center gap-2 px-1 text-sm text-slate-600 dark:text-slate-400" title="Mostra Ancião, Servo, Pioneiro etc. ao lado dos nomes no PDF">
-            <Toggle checked={pdfSiglas} onChange={(e) => mudarPdfSiglas(e.target.checked)} />
-            Designações no PDF
-          </label>
-          <input className="input w-48" placeholder="Destacar nome…" value={destaque} onChange={(e) => setDestaque(e.target.value)} />
-          <button className="btn-outline" onClick={exportarPdf} disabled={gerando || db.grupos.length === 0}>
-            {gerando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Gerar PDF
-          </button>
-          <button className="btn-primary" onClick={() => setNomeModal({ id: null, nome: `Grupo ${db.grupos.length + 1}` })}>
-            <Plus size={16} /> Novo grupo
-          </button>
+        <button className="btn-primary shrink-0" onClick={() => setNomeModal({ id: null, nome: `Grupo ${db.grupos.length + 1}` })} aria-label="Novo grupo">
+          <Plus size={16} /> <span className="hidden sm:inline">Novo grupo</span>
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="order-1 flex w-full rounded-full border border-slate-300 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900 md:w-auto" role="group" aria-label="Situação" title="Filtra aqui e no PDF">
+          {OPCOES_SIT.map((o) => (
+            <button
+              key={o.v}
+              type="button"
+              aria-pressed={filtroSit === o.v}
+              onClick={() => mudarFiltroSit(o.v)}
+              className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition md:flex-none md:py-0.5 md:text-xs ${
+                filtroSit === o.v
+                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+                  : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-300 dark:hover:bg-slate-800'
+              }`}
+            >
+              {o.t}
+            </button>
+          ))}
         </div>
+        <label className="order-5 flex w-full items-center gap-2 px-1 text-sm text-slate-600 dark:text-slate-400 md:order-2 md:w-auto" title="Mostra Ancião, Servo, Pioneiro etc. ao lado dos nomes no PDF">
+          <Toggle checked={pdfSiglas} onChange={(e) => mudarPdfSiglas(e.target.checked)} />
+          Designações no PDF
+        </label>
+        <input className="input order-3 min-w-0 flex-1 md:w-48 md:flex-none" placeholder="Destacar nome…" value={destaque} onChange={(e) => setDestaque(e.target.value)} />
+        <button className="btn-outline order-4 shrink-0" onClick={exportarPdf} disabled={gerando || db.grupos.length === 0}>
+          {gerando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Gerar PDF
+        </button>
       </div>
 
       {db.grupos.length === 0 && semGrupo.length === 0 ? (
@@ -302,7 +330,7 @@ export function Grupos() {
         <DndContext sensors={sensores} onDragStart={(e) => setArrastado(String(e.active.id))} onDragEnd={soltar} onDragCancel={() => setArrastado(null)}>
           <div className="grid items-start gap-3 pb-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {semGrupo.length > 0 && (
-              <Coluna grupo={null} membros={semGrupo} destaque={destaque} onAdicionar={() => setNovoEm(null)} />
+              <Coluna grupo={null} membros={semGrupo} destaque={destaque} onAdicionar={() => setNovoEm(null)} onToque={setMover} />
             )}
             {db.grupos.map((g) => (
               <Coluna
@@ -313,12 +341,49 @@ export function Grupos() {
                 onRenomear={() => setNomeModal({ id: g.id, nome: g.nome })}
                 onExcluir={() => setExcluir(g)}
                 onAdicionar={() => setNovoEm(g.id)}
+                onToque={setMover}
               />
             ))}
           </div>
           <DragOverlay>{pArrastado && <Chip p={pArrastado} arrastando />}</DragOverlay>
         </DndContext>
       )}
+
+      <Folha aberto={!!mover} titulo={mover?.nome ?? ''} onFechar={() => setMover(null)}>
+        {mover && (
+          <div className="space-y-3">
+            <button className="btn-outline w-full justify-start py-2.5" onClick={() => { navegar({ nome: 'publicador', id: mover.id }); setMover(null); }}>
+              <IdCard size={16} /> Abrir cartão
+            </button>
+            <div>
+              <p className="label">Mover para</p>
+              <div className="flex flex-wrap gap-2">
+                {[...db.grupos.map((g) => ({ id: g.id as string | null, nome: g.nome })), { id: null, nome: 'Sem grupo' }].map((g) => {
+                  const atual = (mover.grupoId ?? null) === g.id;
+                  return (
+                    <button
+                      key={g.id ?? 'sem'}
+                      disabled={atual}
+                      onClick={() => {
+                        atualizar((d) => moverPublicador(d, mover.id, g.id));
+                        toast(`${mover.nome} → ${g.nome}`);
+                        setMover(null);
+                      }}
+                      className={`rounded-full border px-3.5 py-2 text-sm font-medium transition ${
+                        atual
+                          ? 'border-indigo-500 bg-indigo-600 text-white'
+                          : 'border-slate-300 bg-white text-slate-700 active:bg-indigo-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
+                      }`}
+                    >
+                      {g.nome}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </Folha>
 
       <Modal
         aberto={!!nomeModal}

@@ -53,6 +53,15 @@
   }
 }
 
+/* No celular, campos com menos de 16px fazem o iOS dar zoom ao tocar. */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 /* Mapa no tema escuro: inverte as cores dos blocos do OpenStreetMap. */
 .dark .leaflet-tile-pane {
   filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);

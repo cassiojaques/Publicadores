@@ -8,14 +8,14 @@ import type { Situacao } from '../domain/serviceYear';
  * Troca o ano de serviço com setas: ◀ volta para o ano anterior, ▶ avança.
  * `anos` traz os anos disponíveis, em qualquer ordem.
  */
-export function SeletorAnoServico({ ano, anos, onChange }: { ano: number; anos: number[]; onChange: (ano: number) => void }) {
+export function SeletorAnoServico({ ano, anos, onChange, className = '' }: { ano: number; anos: number[]; onChange: (ano: number) => void; className?: string }) {
   const ordenados = [...anos].sort((a, b) => a - b);
   const i = ordenados.indexOf(ano);
   const anterior = i > 0 ? ordenados[i - 1] : null;
   const proximo = i >= 0 && i < ordenados.length - 1 ? ordenados[i + 1] : null;
   const seta = 'rounded-md p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent dark:text-slate-300 dark:hover:bg-slate-800';
   return (
-    <div className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900" role="group" aria-label="Ano de serviço">
+    <div className={`inline-flex items-center justify-between gap-1 rounded-lg border border-slate-300 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900 ${className}`} role="group" aria-label="Ano de serviço">
       <button type="button" className={seta} disabled={anterior === null} onClick={() => anterior !== null && onChange(anterior)} title={anterior ? `Ano de serviço ${anterior}` : undefined} aria-label="Ano anterior">
         <ChevronLeft size={18} />
       </button>
@@ -53,17 +53,18 @@ export function Modal({
   }, [aberto, onFechar]);
   if (!aberto) return null;
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 pt-[8vh] backdrop-blur-sm">
-      <div className={`card w-full ${largura}`} role="dialog" aria-modal="true">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 dark:border-slate-800">
+    // No celular a janela vira um painel que sobe da base, com o rodapé sempre à vista.
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/40 backdrop-blur-sm sm:items-start sm:overflow-y-auto sm:p-4 sm:pt-[8vh]">
+      <div className={`card flex max-h-[92dvh] w-full flex-col rounded-b-none sm:max-h-none sm:rounded-b-xl ${largura}`} role="dialog" aria-modal="true" aria-label={titulo}>
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800 sm:px-5">
           <h2 className="font-semibold">{titulo}</h2>
           <button className="btn-ghost p-1" onClick={onFechar} aria-label="Fechar">
             <X size={18} />
           </button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:overflow-visible sm:p-5">{children}</div>
         {rodape && (
-          <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-3 dark:border-slate-800">{rodape}</div>
+          <div className="flex shrink-0 justify-end gap-2 border-t border-slate-200 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-slate-800 sm:px-5 sm:pb-3">{rodape}</div>
         )}
       </div>
     </div>

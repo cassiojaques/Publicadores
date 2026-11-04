@@ -135,7 +135,7 @@ export function FormPublicador({
         </Campo>
         <div className="sm:col-span-2">
           <span className="label">Designações</span>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             {PRIVILEGIOS.map((x) => {
               const marcado = p.privilegios.includes(x.id);
               return (

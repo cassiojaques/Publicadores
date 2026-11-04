@@ -1,12 +1,12 @@
 import { useMemo, useState, type KeyboardEvent } from 'react';
-import { Archive, ArchiveRestore, ArrowLeft, Download, Loader2, Pencil, Trash2, UserCheck, UserX, X } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowLeft, Download, Loader2, Pencil, Phone, Trash2, UserCheck, UserX, X } from 'lucide-react';
 import { definirAuxiliar, definirRelatorio, excluirRelatorio, mesesComDados, useStore } from '../store/store';
 import {
   anosServicoComDados, creditosAprovados, formatarData, LIMITE_HORAS_COM_CREDITO, MESES_ANO_SERVICO, mesesDoAnoServico,
   situacao, totaisAnoServico, totalComCreditos,
 } from '../domain/serviceYear';
 import { auxiliarNoMes, PRIVILEGIOS, type RelatorioMes } from '../domain/types';
-import { Avatar, BadgeSituacao, Confirmar, SeletorAnoServico, Toggle } from '../components/ui';
+import { Avatar, BadgeSituacao, BadgesPrivilegio, Campo, Confirmar, SeletorAnoServico, Toggle } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
 import { gerarS21Bytes } from '../pdf/s21';
 import { salvarArquivoGerado } from '../storage/storage';
@@ -112,33 +112,37 @@ export function PublicadorDetalhe({ id }: { id: string }) {
   );
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="mx-auto max-w-5xl space-y-4 md:space-y-5">
       <button className="btn-ghost -ml-2" onClick={() => navegar({ nome: 'publicadores' })}>
         <ArrowLeft size={16} /> Publicadores
       </button>
 
-      <div className="card flex flex-wrap items-start gap-4 p-5">
-        <Avatar nome={p.nome} tamanho={56} />
+      <div className="card flex flex-wrap items-start gap-3 p-4 md:gap-4 md:p-5">
+        <Avatar nome={p.nome} tamanho={48} />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold">{p.nome}</h1>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h1 className="text-lg font-semibold md:text-xl">{p.nome}</h1>
             <BadgeSituacao s={situacao(p, mesesComDados(db))} />
             {p.arquivado && <span className="badge bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">Arquivado</span>}
           </div>
           <p className="text-sm text-slate-500">
             {grupo ? grupo.nome : 'Sem grupo'}
             {funcao && ` · ${funcao}`}
-            {p.telefone && ` · ${p.telefone}`}
           </p>
+          {p.telefone && (
+            <a href={`tel:${p.telefone.replace(/[^\d+]/g, '')}`} className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:underline dark:text-indigo-300">
+              <Phone size={14} /> {p.telefone}
+            </a>
+          )}
           {p.endereco && <p className="text-sm text-slate-500">{p.endereco}</p>}
-          {p.anotacoes && <p className="mt-2 whitespace-pre-wrap text-sm">{p.anotacoes}</p>}
+          {p.anotacoes && <p className="mt-2 whitespace-pre-wrap rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/50">{p.anotacoes}</p>}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button className="btn-outline" onClick={() => setEditar(true)}>
+        <div className="flex w-full items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-800 md:w-auto md:border-0 md:pt-0">
+          <button className="btn-outline flex-1 md:flex-none" onClick={() => setEditar(true)}>
             <Pencil size={16} /> Editar
           </button>
           <button
-            className={p.inativo ? 'btn-outline text-emerald-700 dark:text-emerald-300' : 'btn-outline text-rose-600'}
+            className={`flex-1 md:flex-none ${p.inativo ? 'btn-outline text-emerald-700 dark:text-emerald-300' : 'btn-outline text-rose-600'}`}
             title={p.inativo ? 'Remover a marcação manual de inativo' : 'Marcar como inativo'}
             onClick={() => {
               atualizar((d) => {
@@ -173,18 +177,44 @@ export function PublicadorDetalhe({ id }: { id: string }) {
 
       {/* Registro de Publicador (S-21) */}
       <div className="card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3 dark:border-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800 md:px-5">
           <h2 className="font-semibold">Registro de Publicador de Congregação</h2>
-          <div className="flex items-center gap-2">
-            <SeletorAnoServico ano={ano} anos={anos} onChange={setAno} />
-            <button className="btn-primary" onClick={exportar} disabled={gerando}>
+          <div className="flex w-full items-center gap-2 md:w-auto">
+            <SeletorAnoServico ano={ano} anos={anos} onChange={setAno} className="flex-1 md:flex-none" />
+            <button className="btn-primary shrink-0 self-stretch" onClick={exportar} disabled={gerando}>
               {gerando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
               PDF
             </button>
           </div>
         </div>
 
-        <div className="grid gap-x-6 gap-y-2 px-5 py-4 text-sm sm:grid-cols-2">
+        {/* Celular: dados em campos curtos, só as designações que a pessoa tem */}
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 px-4 py-3 text-sm md:hidden">
+          <div>
+            <dt className="label">Nascimento</dt>
+            <dd>{formatarData(p.nascimento) || '—'}</dd>
+          </div>
+          <div>
+            <dt className="label">Batismo</dt>
+            <dd>{formatarData(p.batismo) || (p.batizado ? '—' : 'Não batizado')}</dd>
+          </div>
+          <div>
+            <dt className="label">Sexo</dt>
+            <dd>{p.sexo === 'M' ? 'Masculino' : 'Feminino'}</dd>
+          </div>
+          <div>
+            <dt className="label">Esperança</dt>
+            <dd>{p.esperanca === 'ungido' ? 'Ungido' : 'Outras ovelhas'}</dd>
+          </div>
+          <div className="col-span-2">
+            <dt className="label">Designações</dt>
+            <dd className="flex flex-wrap items-center gap-1">
+              {p.privilegios.length || p.auxiliarPermanente || !p.batizado ? <BadgesPrivilegio p={p} /> : <span className="text-slate-500">—</span>}
+            </dd>
+          </div>
+        </dl>
+
+        <div className="hidden gap-x-6 gap-y-2 px-5 py-4 text-sm md:grid md:grid-cols-2">
           <p><span className="text-slate-500">Data de nascimento:</span> {formatarData(p.nascimento) || '—'}</p>
           <div className="flex gap-4">
             <Caixa marcado={p.sexo === 'M'} rotulo="Masculino" />
@@ -203,7 +233,73 @@ export function PublicadorDetalhe({ id }: { id: string }) {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Celular: um cartão por mês, com os campos lado a lado */}
+        <div className="divide-y divide-slate-100 border-t border-slate-200 dark:divide-slate-800 dark:border-slate-800 md:hidden">
+          {meses.map((mes, i) => {
+            const r = p.relatorios[mes];
+            const nome = MESES_ANO_SERVICO[i];
+            const campo = (c: 'estudos' | 'horas' | 'creditos', rotulo: string) => (
+              <Campo rotulo={rotulo}>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  className="input px-2 py-1.5 text-center tabular-nums"
+                  value={r?.[c] ?? ''}
+                  onChange={(e) => editarMes(mes, c, e.target.value === '' ? null : Number(e.target.value))}
+                />
+              </Campo>
+            );
+            return (
+              <div key={mes} className={`space-y-2 px-4 py-3 ${r?.participou ? '' : 'bg-slate-50/60 dark:bg-slate-800/20'}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{nome}</span>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                      <Toggle checked={!!r?.participou} onChange={(e) => editarMes(mes, 'participou', e.target.checked)} aria-label={`Participou em ${nome}`} />
+                      Participou
+                    </label>
+                    {r && (
+                      <button
+                        className="rounded p-1 text-slate-300 hover:bg-rose-50 hover:text-rose-600 dark:text-slate-600"
+                        aria-label={`Excluir o relatório de ${nome}`}
+                        onClick={() => atualizar((d) => excluirRelatorio(d, id, mes))}
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className={`grid gap-2 ${pioneiro ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {campo('estudos', 'Estudos')}
+                  {campo('horas', 'Horas')}
+                  {pioneiro && campo('creditos', 'Créditos')}
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex shrink-0 items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                    <Toggle checked={r ? r.auxiliar : auxiliarNoMes(p, mes)} onChange={(e) => atualizar((d) => definirAuxiliar(d, id, mes, e.target.checked))} aria-label={`Pioneiro auxiliar em ${nome}`} />
+                    P. aux.
+                  </label>
+                  <input className="input min-w-0 flex-1 py-1.5" placeholder="Observações" value={r?.obs ?? ''} onChange={(e) => editarMes(mes, 'obs', e.target.value)} aria-label={`Observações de ${nome}`} />
+                </div>
+                {pioneiro && !!r?.creditos && (
+                  <p className="text-xs text-slate-500">
+                    Créditos aprovados <b className="tabular-nums">{creditosAprovados(r)}</b> · total com créditos <b className="tabular-nums">{totalComCreditos(r)}</b>
+                  </p>
+                )}
+              </div>
+            );
+          })}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 bg-slate-50 px-4 py-3 text-sm font-semibold dark:bg-slate-900/60">
+            <span>Total do ano</span>
+            <span className="tabular-nums">
+              {tot.mesesParticipou} {tot.mesesParticipou === 1 ? 'mês' : 'meses'} · {tot.horas || 0} h
+              {pioneiro && !!tot.totalComCreditos && <> · {tot.totalComCreditos} c/ créditos</>}
+            </span>
+          </div>
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full border-t border-slate-200 text-sm dark:border-slate-800">
             <thead>
               <tr className="divide-x divide-slate-200 dark:divide-slate-800">

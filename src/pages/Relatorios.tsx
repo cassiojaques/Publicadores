@@ -6,7 +6,7 @@ import {
 import { anoServicoDe, mesRelatorioAtual, nomeMes } from '../domain/serviceYear';
 import { faltantesPorGrupo, statusDoMes, textoFaltantes, totaisDoMes, type LinhaMes, type StatusMes } from '../domain/relatorios';
 import { auxiliarNoMes, type RelatorioMes } from '../domain/types';
-import { Avatar, BadgesPrivilegio, Confirmar, Modal, Toggle, Vazio } from '../components/ui';
+import { Avatar, BadgesPrivilegio, Campo, Confirmar, Modal, Toggle, Vazio } from '../components/ui';
 import { gerarImagemFaltantes } from '../imagem/faltantes';
 import { salvarArquivoGerado } from '../storage/storage';
 
@@ -58,10 +58,10 @@ export function Relatorios({ mesInicial }: { mesInicial?: string }) {
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Relatórios</h1>
+          <h1 className="text-xl font-semibold md:text-2xl">Relatórios</h1>
           <p className="text-sm text-slate-500">
             Agora, em {new Date().toLocaleDateString('pt-BR', { month: 'long' })}, os publicadores entregam o relatório de <b>{nomeMes(aRelatar)}</b>.
-            Alterações aqui atualizam os cartões S-21 na hora.
+            <span className="hidden md:inline"> Alterações aqui atualizam os cartões S-21 na hora.</span>
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -221,7 +221,7 @@ function ListaMeses({
 
   const seta = (dir: 1 | -1, ativa: boolean) => (
     <button
-      className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+      className="grid h-9 w-9 shrink-0 place-items-center max-sm:hidden rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
       onClick={() => rolar(dir)}
       disabled={!ativa}
       aria-label={dir < 0 ? 'Meses mais recentes' : 'Meses mais antigos'}
@@ -349,6 +349,23 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
     }
   }
 
+  /** Ações de edição de uma linha, iguais na tabela (desktop) e na lista (celular). */
+  const acoes = (l: LinhaMes) => ({
+    onAbrir: () => navegar({ nome: 'publicador', id: l.p.id }),
+    onEditar: <K extends keyof RelatorioMes>(campo: K, valor: RelatorioMes[K]) => {
+      setEditadas((s) => (s.has(l.p.id) ? s : new Set(s).add(l.p.id)));
+      atualizar((d) => definirRelatorio(d, l.p.id, mes, campo, valor));
+    },
+    onAuxiliar: (valor: boolean) => {
+      setEditadas((s) => (s.has(l.p.id) ? s : new Set(s).add(l.p.id)));
+      atualizar((d) => definirAuxiliar(d, l.p.id, mes, valor));
+    },
+    onExcluir: () => {
+      atualizar((d) => excluirRelatorio(d, l.p.id, mes));
+      toast(`Relatório de ${l.p.nome} excluído.`);
+    },
+  });
+
   const abas: [Filtro, string, number][] = [
     ['falta', 'Faltam', conta('falta')],
     ['relatou', 'Relataram', conta('relatou')],
@@ -358,7 +375,7 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="card p-5">
+      <div className="card p-4 md:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Relatório de {nomeMes(mes)}</h2>
@@ -369,9 +386,9 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
                 : 'preenchido manualmente'}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
             <button className="btn-outline" onClick={copiarFaltantes} disabled={conta('falta') === 0}>
-              <ClipboardCopy size={16} /> Copiar quem falta
+              <ClipboardCopy size={16} /> Copiar<span className="hidden sm:inline"> quem falta</span>
             </button>
             <button
               className="btn-outline"
@@ -379,15 +396,15 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
               disabled={conta('falta') === 0 || gerandoImagem}
               title="Imagem com quem falta, separado por grupo (segue o filtro de grupo)"
             >
-              {gerandoImagem ? <Loader2 size={16} className="animate-spin" /> : <ImageDown size={16} />} Imagem de quem falta
+              {gerandoImagem ? <Loader2 size={16} className="animate-spin" /> : <ImageDown size={16} />} Imagem<span className="hidden sm:inline"> de quem falta</span>
             </button>
-            <button className="btn-ghost text-rose-600" onClick={onExcluirMes} title="Excluir o mês inteiro">
+            <button className="btn-ghost col-span-2 text-rose-600 sm:col-span-1" onClick={onExcluirMes} title="Excluir o mês inteiro">
               <Trash2 size={16} /> Excluir mês
             </button>
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 xl:grid-cols-3">
+        <div className="mt-4 grid gap-2 md:gap-3 xl:grid-cols-3">
           <Resumo titulo="Publicadores" t={totais.publicadores} />
           <Resumo titulo="Pioneiros auxiliares" t={totais.auxiliares} horas />
           <Resumo titulo="Pioneiros regulares" t={totais.regulares} horas />
@@ -396,20 +413,20 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
 
       <div className="card overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3 dark:border-slate-800">
-          <div className="inline-flex rounded-lg border border-slate-200 p-0.5 dark:border-slate-800">
+          <div className="grid w-full grid-cols-4 rounded-lg border border-slate-200 p-0.5 dark:border-slate-800 md:inline-flex md:w-auto">
             {abas.map(([id, rotulo, n]) => (
               <button
                 key={id}
                 onClick={() => mudarFiltro(id)}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                className={`flex flex-col items-center rounded-md px-2 py-1.5 text-sm font-medium leading-tight transition md:flex-row md:gap-1.5 md:px-3 ${
                   filtro === id ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                 }`}
               >
-                {rotulo} <span className="opacity-70">{n}</span>
+                {rotulo} <span className="text-xs opacity-70 md:text-sm">{n}</span>
               </button>
             ))}
           </div>
-          <select className="input w-auto" value={grupo} onChange={(e) => setGrupo(e.target.value)} aria-label="Grupo">
+          <select className="input min-w-0 flex-1 md:w-auto md:flex-none" value={grupo} onChange={(e) => setGrupo(e.target.value)} aria-label="Grupo">
             <option value="todos">Todos os grupos</option>
             {db.grupos.map((g) => (
               <option key={g.id} value={g.id}>
@@ -418,7 +435,7 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
             ))}
             <option value="sem">Sem grupo</option>
           </select>
-          <div className="relative min-w-[160px] flex-1">
+          <div className="relative min-w-0 flex-[1.4] md:min-w-[160px] md:flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input className="input pl-9" placeholder="Nome…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
@@ -429,7 +446,13 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
             {filtro === 'falta' ? 'Ninguém faltando. 🎉' : 'Nenhum publicador neste filtro.'}
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
+            {visiveis.map((l) => (
+              <LinhaMovel key={l.p.id} l={l} mes={mes} grupo={db.grupos.find((g) => g.id === l.p.grupoId)?.nome ?? 'Sem grupo'} {...acoes(l)} />
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr>
@@ -446,25 +469,12 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {visiveis.map((l) => (
-                  <Linha key={l.p.id} l={l} mes={mes} grupo={db.grupos.find((g) => g.id === l.p.grupoId)?.nome ?? '—'}
-                    onAbrir={() => navegar({ nome: 'publicador', id: l.p.id })}
-                    onEditar={(campo, valor) => {
-                      setEditadas((s) => (s.has(l.p.id) ? s : new Set(s).add(l.p.id)));
-                      atualizar((d) => definirRelatorio(d, l.p.id, mes, campo, valor));
-                    }}
-                    onAuxiliar={(valor) => {
-                      setEditadas((s) => (s.has(l.p.id) ? s : new Set(s).add(l.p.id)));
-                      atualizar((d) => definirAuxiliar(d, l.p.id, mes, valor));
-                    }}
-                    onExcluir={() => {
-                      atualizar((d) => excluirRelatorio(d, l.p.id, mes));
-                      toast(`Relatório de ${l.p.nome} excluído.`);
-                    }}
-                  />
+                  <Linha key={l.p.id} l={l} mes={mes} grupo={db.grupos.find((g) => g.id === l.p.grupoId)?.nome ?? '—'} {...acoes(l)} />
                 ))}
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>
@@ -473,14 +483,86 @@ function DetalheMes({ mes, onExcluirMes }: { mes: string; onExcluirMes: () => vo
 
 function Resumo({ titulo, t, horas }: { titulo: string; t: { relatorios: number; estudos: number; horas: number }; horas?: boolean }) {
   return (
-    <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50">
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50 xl:block">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{titulo}</p>
-      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm xl:mt-1">
         <span><b className="text-lg tabular-nums">{t.relatorios}</b> relatórios</span>
         <span><b className="text-lg tabular-nums">{t.estudos}</b> estudos</span>
         {horas && <span><b className="text-lg tabular-nums">{t.horas}</b> horas</span>}
       </div>
     </div>
+  );
+}
+
+/** Linha do relatório no celular: um cartão por publicador, com os campos lado a lado. */
+function LinhaMovel({
+  l,
+  mes,
+  grupo,
+  onAbrir,
+  onEditar,
+  onAuxiliar,
+  onExcluir,
+}: {
+  l: LinhaMes;
+  mes: string;
+  grupo: string;
+  onAbrir: () => void;
+  onEditar: <K extends keyof RelatorioMes>(campo: K, valor: RelatorioMes[K]) => void;
+  onAuxiliar: (valor: boolean) => void;
+  onExcluir: () => void;
+}) {
+  const { p, r, status } = l;
+  const num = (campo: 'estudos' | 'horas', rotulo: string) => (
+    <Campo rotulo={rotulo}>
+      <input
+        type="number"
+        inputMode="numeric"
+        min={0}
+        className="input px-2 py-1.5 text-center tabular-nums"
+        value={r?.[campo] ?? ''}
+        onChange={(e) => onEditar(campo, e.target.value === '' ? null : Number(e.target.value))}
+      />
+    </Campo>
+  );
+  return (
+    <li className={`space-y-2 px-3 py-3 ${status === 'inativo' ? 'opacity-60' : ''}`}>
+      <div className="flex items-center gap-2">
+        <button className="flex min-w-0 flex-1 items-center gap-2.5 text-left" onClick={onAbrir} aria-label={`Abrir cartão de ${p.nome}`}>
+          <Avatar nome={p.nome} tamanho={34} />
+          <span className="min-w-0">
+            <span className="block truncate font-medium">{p.nome}</span>
+            <span className="flex flex-wrap items-center gap-1 text-xs text-slate-500">
+              {grupo}
+              <BadgesPrivilegio p={p} mes={mes} />
+            </span>
+          </span>
+        </button>
+        <span className={`badge shrink-0 ${ROTULO_STATUS[status].c}`}>{ROTULO_STATUS[status].t}</span>
+        {r && (
+          <button className="rounded p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10" onClick={onExcluir} aria-label={`Excluir o relatório de ${p.nome}`}>
+            <X size={16} />
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-[auto_1fr_1fr] items-end gap-2">
+        <div>
+          <span className="label">Participou</span>
+          <span className="flex h-[34px] items-center justify-center">
+            <Toggle checked={!!r?.participou} onChange={(e) => onEditar('participou', e.target.checked)} aria-label={`Participou: ${p.nome}`} />
+          </span>
+        </div>
+        {num('estudos', 'Estudos')}
+        {num('horas', 'Horas')}
+      </div>
+      <div className="flex items-center gap-3">
+        <label className="flex shrink-0 items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+          <Toggle checked={r ? r.auxiliar : auxiliarNoMes(p, mes)} onChange={(e) => onAuxiliar(e.target.checked)} aria-label={`Pioneiro auxiliar: ${p.nome}`} />
+          P. aux.
+        </label>
+        <input className="input min-w-0 flex-1 py-1.5" placeholder="Observações" value={r?.obs ?? ''} onChange={(e) => onEditar('obs', e.target.value)} aria-label={`Observações de ${p.nome}`} />
+      </div>
+    </li>
   );
 }
 

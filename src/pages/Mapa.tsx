@@ -24,7 +24,7 @@ function Chip({ ativo, onClick, cor, children }: { ativo: boolean; onClick: () =
       type="button"
       aria-pressed={ativo}
       onClick={onClick}
-      className={`flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium transition ${
+      className={`flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition md:px-2.5 md:py-0.5 md:text-xs ${
         ativo
           ? 'border-indigo-500 bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
           : 'border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
@@ -190,28 +190,36 @@ export function Mapa() {
   const naoEncontrados = db.publicadores.filter((p) => falhas.includes(p.id));
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex h-full flex-col gap-3 md:gap-4">
       <div>
-        <h1 className="text-2xl font-semibold">Mapa</h1>
-        <p className="text-sm text-slate-500">Onde moram os publicadores. Clique num ponto para ver quem mora ali.</p>
+        <h1 className="text-xl font-semibold md:text-2xl">Mapa</h1>
+        <p className="text-sm text-slate-500">Onde moram os publicadores. Toque num ponto para ver quem mora ali.</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-xs font-medium uppercase tracking-wide text-slate-400">Grupo</span>
-        {db.grupos.map((g) => (
-          <Chip key={g.id} cor={corDe(g.id)} ativo={grupos.includes(g.id)} onClick={() => setGrupos((x) => alternar(x, g.id))}>
-            {g.nome}
-          </Chip>
-        ))}
-        <Chip cor={COR_SEM_GRUPO} ativo={grupos.includes(SEM)} onClick={() => setGrupos((x) => alternar(x, SEM))}>
-          Sem grupo
-        </Chip>
-        <span className="ml-3 mr-1 text-xs font-medium uppercase tracking-wide text-slate-400">Situação</span>
-        <Chip ativo={sits.includes('ativo')} onClick={() => setSits((x) => alternar(x, 'ativo'))}>Ativos</Chip>
-        <Chip ativo={sits.includes('inativo')} onClick={() => setSits((x) => alternar(x, 'inativo'))}>Inativos</Chip>
-        <label className="ml-auto flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400" title="Arraste os pontos para corrigir a posição">
+      <div className="card space-y-3 p-3 md:space-y-2 md:p-2.5">
+        <div className="flex flex-col gap-1.5 md:flex-row md:items-center">
+          <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-indigo-900/60 dark:text-slate-500 md:w-20">Grupos</span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {db.grupos.map((g) => (
+              <Chip key={g.id} cor={corDe(g.id)} ativo={grupos.includes(g.id)} onClick={() => setGrupos((x) => alternar(x, g.id))}>
+                {g.nome}
+              </Chip>
+            ))}
+            <Chip cor={COR_SEM_GRUPO} ativo={grupos.includes(SEM)} onClick={() => setGrupos((x) => alternar(x, SEM))}>
+              Sem grupo
+            </Chip>
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5 md:flex-row md:items-center">
+          <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-indigo-900/60 dark:text-slate-500 md:w-20">Situação</span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Chip ativo={sits.includes('ativo')} onClick={() => setSits((x) => alternar(x, 'ativo'))}>Ativos</Chip>
+            <Chip ativo={sits.includes('inativo')} onClick={() => setSits((x) => alternar(x, 'inativo'))}>Inativos</Chip>
+          </div>
+        </div>
+        <label className="flex items-center gap-2 border-t border-slate-100 pt-3 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400 md:border-0 md:pt-0" title="Arraste os pontos para corrigir a posição">
           <Toggle checked={ajustar} onChange={(e) => setAjustar(e.target.checked)} />
-          Ajustar pontos
+          <span className="whitespace-nowrap">Ajustar pontos</span> <span className="hidden text-xs text-slate-400 sm:inline">· arraste um ponto para corrigir a posição</span>
         </label>
       </div>
 

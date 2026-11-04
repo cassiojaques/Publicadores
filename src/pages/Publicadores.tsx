@@ -202,7 +202,7 @@ export function Publicadores() {
     [db.publicadores, meses],
   );
   const fuse = useMemo(
-    () => new Fuse(db.publicadores, { keys: ['nome', 'telefone', 'endereco'], threshold: 0.35, ignoreLocation: true }),
+    () => new Fuse(db.publicadores, { keys: ['nome', 'telefone'], threshold: 0.35, ignoreLocation: true }),
     [db.publicadores],
   );
 
@@ -347,7 +347,7 @@ export function Publicadores() {
         <div className="flex items-center gap-2">
           <div className="relative min-w-0 flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input className="input py-2 pl-9 pr-8 md:py-1.5" type="search" placeholder="Buscar por nome, telefone…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <input className="input py-2 pl-9 pr-8 md:py-1.5" type="search" placeholder="Buscar por nome ou número…" value={q} onChange={(e) => setQ(e.target.value)} />
             {q && (
               <button className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:text-slate-600" onClick={() => setQ('')} aria-label="Limpar busca">
                 <X size={15} />

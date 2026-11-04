@@ -10,6 +10,7 @@ import { PublicadorDetalhe } from './pages/PublicadorDetalhe';
 import { Grupos } from './pages/Grupos';
 import { Mapa } from './pages/Mapa';
 import { Relatorios } from './pages/Relatorios';
+import { Assistencia } from './pages/Assistencia';
 import { Importar } from './pages/Importar';
 import { Config, minutosBloqueio } from './pages/Config';
 
@@ -71,6 +72,7 @@ export function App() {
       {pagina.nome === 'grupos' && <Grupos />}
       {pagina.nome === 'mapa' && <Mapa />}
       {pagina.nome === 'relatorios' && <Relatorios key={pagina.mes ?? ''} mesInicial={pagina.mes} />}
+      {pagina.nome === 'assistencia' && <Assistencia />}
       {pagina.nome === 'importar' && <Importar />}
       {pagina.nome === 'config' && <Config />}
     </Layout>

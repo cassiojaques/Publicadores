@@ -12,6 +12,7 @@ export type Pagina =
   | { nome: 'grupos' }
   | { nome: 'mapa' }
   | { nome: 'relatorios'; mes?: string }
+  | { nome: 'assistencia' }
   | { nome: 'importar' }
   | { nome: 'config' };
 
@@ -93,6 +94,7 @@ function normalizar(db: Db): Db {
     ...base,
     ...db,
     congregacao: { ...base.congregacao, ...db.congregacao },
+    assistencia: db.assistencia ?? {},
     // Registros gravados antes de existirem os campos `batizado`, `inativo` e de pioneiro auxiliar.
     publicadores: (db.publicadores ?? []).map((p) => ({
       ...p,

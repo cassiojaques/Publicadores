@@ -35,11 +35,11 @@ export function ExtrairDados({ aberto, onFechar }: { aberto: boolean; onFechar: 
   const totalCartoes = useMemo(() => db.publicadores.filter((p) => !p.arquivado).length, [db.publicadores]);
 
   async function gerar() {
-    setProgresso([0, totalCartoes + 5]);
+    setProgresso([0, totalCartoes + 6]);
     try {
       const bytes = await gerarExtracao(db, ano, (f, t) => setProgresso([f, t]));
       if (await salvarArquivoGerado(`Registros de Publicador (S-21) ${ano}.zip`, bytes, 'application/zip')) {
-        toast(`${totalCartoes} cartões e 5 PDFs extraídos.`);
+        toast(`${totalCartoes} cartões e 6 PDFs extraídos.`);
         onFechar();
       }
     } catch (e) {
@@ -81,7 +81,7 @@ export function ExtrairDados({ aberto, onFechar }: { aberto: boolean; onFechar: 
         <div className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700">
           <p className="mb-2 font-medium">Conteúdo do .zip</p>
           <ul className="space-y-1">
-            {['Total (Publicadores)', 'Total (Pioneiros auxiliares)', 'Total (Pioneiros Reg. Espe. e Missionários em campo)', 'Grupos de Saída de Campo (ativos)', 'Lista de Emergência (por grupo)'].map((n) => (
+            {['Total (Publicadores)', 'Total (Pioneiros auxiliares)', 'Total (Pioneiros Reg. Espe. e Missionários em campo)', 'Grupos de Saída de Campo (ativos)', 'Lista de Emergência (por grupo)', 'Registro de Assistência (S-88)'].map((n) => (
               <li key={n} className="flex items-center gap-2">
                 <FileText size={14} className="shrink-0 text-indigo-600" /> {n}
               </li>

@@ -5,6 +5,7 @@ import type { Db, Publicador } from '../domain/types';
 import { carregarModelo, gerarS21, gerarS21Totais } from './s21';
 import { gerarPdfGrupos } from './grupos';
 import { gerarPdfEmergencia } from './emergencia';
+import { gerarS88Bytes } from './s88';
 
 type Progresso = (feitos: number, total: number) => void;
 
@@ -76,13 +77,13 @@ export function totaisDoAno(db: Db, anoServico: number, hoje = new Date()) {
 
 /**
  * Zip com o arquivo dos Registros de Publicador (S-21) organizado em pastas e, na raiz,
- * os cartões de totais, o PDF dos grupos (só ativos) e a lista de emergência por grupo.
+ * os cartões de totais, o PDF dos grupos (só ativos) a lista de emergência por grupo e o S-88 (assistência às reuniões).
  */
 export async function gerarExtracao(db: Db, anoServico: number, progresso?: Progresso): Promise<Uint8Array> {
   const { zipSync } = await import('fflate');
   const modelo = await carregarModelo();
   const cartoes = caminhosDosCartoes(db);
-  const total = cartoes.length + 5;
+  const total = cartoes.length + 6;
   let feitos = 0;
   const passo = () => progresso?.(++feitos, total);
   const arquivos: Record<string, Uint8Array> = {};
@@ -100,6 +101,8 @@ export async function gerarExtracao(db: Db, anoServico: number, progresso?: Prog
   arquivos['Grupos de Saída de Campo.pdf'] = await gerarPdfGrupos(db, { situacao: 'ativo' });
   passo();
   arquivos['Lista de Emergência.pdf'] = await gerarPdfEmergencia(db);
+  passo();
+  arquivos['Registro de Assistência (S-88).pdf'] = await gerarS88Bytes(db, anoServico);
   passo();
 
   for (const { p, caminho } of cartoes) {

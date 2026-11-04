@@ -75,16 +75,29 @@ export interface Importacao {
   registros: number;
 }
 
+/** Assistência de um tipo de reunião num mês: quantas houve e o total de presentes (formulário S-88). */
+export interface AssistenciaReuniao {
+  reunioes: number | null;
+  total: number | null;
+}
+
+/** Reunião do meio de semana e do fim de semana. */
+export type TipoReuniao = 'meio' | 'fim';
+
+export type AssistenciaMes = Partial<Record<TipoReuniao, AssistenciaReuniao>>;
+
 export interface Db {
   versao: 1;
   congregacao: { nome: string; /** Cidade/UF usada para completar os endereços ao localizar no mapa. */ cidade: string };
   grupos: Grupo[];
   publicadores: Publicador[];
   importacoes: Importacao[];
+  /** Assistência às reuniões por mês, chave "AAAA-MM". */
+  assistencia: Record<string, AssistenciaMes>;
 }
 
 export function dbVazio(nomeCongregacao = ''): Db {
-  return { versao: 1, congregacao: { nome: nomeCongregacao, cidade: '' }, grupos: [], publicadores: [], importacoes: [] };
+  return { versao: 1, congregacao: { nome: nomeCongregacao, cidade: '' }, grupos: [], publicadores: [], importacoes: [], assistencia: {} };
 }
 
 /** Designado pioneiro auxiliar no mês (permanente ou só naquele mês). Não olha o relatório. */

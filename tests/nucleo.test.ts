@@ -275,9 +275,10 @@ describe('extrair dados', () => {
   it('gera o zip com as pastas do arquivo e os PDFs da raiz', async () => {
     const { gerarExtracao } = await import('../src/pdf/extracao');
     const orig = globalThis.fetch;
-    globalThis.fetch = (async () => new Response(readFileSync('src/assets/S-21_T.pdf'))) as typeof fetch;
+    globalThis.fetch = (async (url: string) => new Response(readFileSync(String(url).includes('S-88') ? 'src/assets/S-88_T.pdf' : 'src/assets/S-21_T.pdf'))) as typeof fetch;
     try {
       const db = dbVazio('Central');
+      db.assistencia['2025-09'] = { meio: { reunioes: 4, total: 363 }, fim: { reunioes: 4, total: 435 } };
       const sup = novoPublicador({ nome: 'Carlos Lima', grupoId: 'g1', privilegios: ['anciao'] });
       db.publicadores.push(sup);
       db.grupos.push({ id: 'g1', nome: 'Grupo 1', superintendenteId: sup.id, ajudanteId: null });
@@ -298,10 +299,17 @@ describe('extrair dados', () => {
         'Grupos de Saída de Campo.pdf',
         'Inativos (1)/Caio (Grupo 1).pdf',
         'Lista de Emergência.pdf',
+        'Registro de Assistência (S-88).pdf',
         'Total (Pioneiros Reg. Espe. e Missionários em campo).pdf',
         'Total (Pioneiros auxiliares).pdf',
         'Total (Publicadores).pdf',
       ]);
+      const s88 = (await PDFDocument.load(zip['Registro de Assistência (S-88).pdf'])).getForm();
+      expect(s88.getTextField('Service Year_1').getText()).toBe('2025');
+      expect(s88.getTextField('Service Year_2').getText()).toBe('2026');
+      expect(s88.getTextField('2-Attendance_1').getText()).toBe('363');
+      expect(s88.getTextField('2-Average_1').getText()).toBe('90.75');
+      expect(s88.getTextField('4-Average_Total').getText()).toBe('108.75');
       const total = (await PDFDocument.load(zip['Total (Pioneiros Reg. Espe. e Missionários em campo).pdf'])).getForm();
       expect(total.getTextField('900_1_Text_SanSerif').getText()).toBe('Pioneiros regulares, especiais e missionários em campo');
       expect(total.getTextField('902_20_Text_C_SanSerif').getText()).toBe('2');

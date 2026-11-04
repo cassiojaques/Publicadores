@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
-  AlertTriangle, Check, ClipboardList, CloudUpload, FileInput, LayoutDashboard, Lock, MapPin, Menu, Moon, PanelLeftClose, PanelLeftOpen, Settings, Sun, Users, UsersRound,
+  AlertTriangle, BarChart3, Check, ClipboardList, CloudUpload, FileInput, LayoutDashboard, Lock, MapPin, Menu, Moon, PanelLeftClose, PanelLeftOpen, Settings, Sun, Users, UsersRound,
 } from 'lucide-react';
 import { Folha } from './ui';
 import { useStore, type Pagina } from '../store/store';
@@ -14,6 +14,7 @@ const NAV: { p: Pagina['nome']; rotulo: string; icone: ReactNode }[] = [
   { p: 'grupos', rotulo: 'Grupos de campo', icone: <UsersRound size={18} /> },
   { p: 'mapa', rotulo: 'Mapa', icone: <MapPin size={18} /> },
   { p: 'relatorios', rotulo: 'Relatórios', icone: <ClipboardList size={18} /> },
+  { p: 'assistencia', rotulo: 'Assistência', icone: <BarChart3 size={18} /> },
   { p: 'importar', rotulo: 'Importar', icone: <FileInput size={18} /> },
   { p: 'config', rotulo: 'Configurações', icone: <Settings size={18} /> },
 ];

@@ -245,9 +245,8 @@ export function Publicadores() {
     return [...filtrada].sort((a, b) => {
       const x = chave(a);
       const y = chave(b);
-      // Vazios ficam sempre no fim, qualquer que seja o sentido.
-      if (vazio(x) !== vazio(y)) return vazio(x) ? 1 : -1;
-      const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'pt-BR', { numeric: true });
+      // Vazio vale "menos que tudo": no sentido crescente fica em cima, no decrescente embaixo.
+      const c = vazio(x) || vazio(y) ? Number(!vazio(x)) - Number(!vazio(y)) : typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'pt-BR', { numeric: true });
       return c * dir || porNome(a, b);
     });
   })();

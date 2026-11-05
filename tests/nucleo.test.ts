@@ -272,6 +272,27 @@ describe('ano de serviço e inativos', () => {
 });
 
 describe('extrair dados', () => {
+  it('extrai só o que foi escolhido: um PDF sai como arquivo, pastas viram zip', async () => {
+    const { gerarSelecao, pastasDaExtracao } = await import('../src/pdf/extracao');
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async (url: string) => new Response(readFileSync(String(url).includes('S-88') ? 'src/assets/S-88_T.pdf' : 'src/assets/S-21_T.pdf'))) as typeof fetch;
+    try {
+      const db = dbVazio('Central');
+      db.grupos.push({ id: 'g1', nome: 'Grupo 1', superintendenteId: null, ajudanteId: null });
+      db.publicadores.push(novoPublicador({ nome: 'Ana', grupoId: 'g1' }), novoPublicador({ nome: 'Caio', inativo: true }));
+      const { folhas } = pastasDaExtracao(db);
+      const unico = await gerarSelecao(db, 2026, { arquivos: ['Registro de Assistência (S-88).pdf'], pastas: [] });
+      expect(unico.mime).toBe('application/pdf');
+      expect(unico.nome).toBe('Registro de Assistência (S-88).pdf');
+      const inativos = [...folhas].find((f) => f.startsWith('Inativos'))!;
+      const zip = await gerarSelecao(db, 2026, { arquivos: [], pastas: [inativos] });
+      expect(zip.mime).toBe('application/zip');
+      expect(Object.keys(unzipSync(zip.bytes))).toEqual([`${inativos}/Caio.pdf`]);
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+
   it('gera o zip com as pastas do arquivo e os PDFs da raiz', async () => {
     const { gerarExtracao } = await import('../src/pdf/extracao');
     const orig = globalThis.fetch;

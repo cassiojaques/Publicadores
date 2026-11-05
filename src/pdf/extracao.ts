@@ -75,40 +75,114 @@ export function totaisDoAno(db: Db, anoServico: number, hoje = new Date()) {
   };
 }
 
+/** PDFs da raiz do arquivo, na ordem em que aparecem. */
+export const ARQUIVOS_RAIZ = [
+  'Total (Publicadores).pdf',
+  'Total (Pioneiros auxiliares).pdf',
+  'Total (Pioneiros Reg. Espe. e Missionários em campo).pdf',
+  'Grupos de Saída de Campo.pdf',
+  'Lista de Emergência.pdf',
+  'Registro de Assistência (S-88).pdf',
+];
+
+/** Pasta de um caminho de cartão ("A/B/Nome.pdf" → "A/B"). */
+const pastaDe = (caminho: string) => caminho.split('/').slice(0, -1).join('/');
+
 /**
- * Zip com o arquivo dos Registros de Publicador (S-21) organizado em pastas e, na raiz,
- * os cartões de totais, o PDF dos grupos (só ativos) a lista de emergência por grupo e o S-88 (assistência às reuniões).
+ * Todas as pastas do arquivo (inclusive as que só contêm outras pastas), em ordem alfabética,
+ * e quais delas guardam cartões (as "folhas").
  */
-export async function gerarExtracao(db: Db, anoServico: number, progresso?: Progresso): Promise<Uint8Array> {
-  const { zipSync } = await import('fflate');
-  const modelo = await carregarModelo();
-  const cartoes = caminhosDosCartoes(db);
-  const total = cartoes.length + 6;
+export function pastasDaExtracao(db: Db): { todas: string[]; folhas: Set<string> } {
+  const todas = new Set<string>();
+  const folhas = new Set<string>();
+  for (const { caminho } of caminhosDosCartoes(db)) {
+    const partes = caminho.split('/').slice(0, -1);
+    folhas.add(partes.join('/'));
+    partes.forEach((_, i) => todas.add(partes.slice(0, i + 1).join('/')));
+  }
+  return { todas: [...todas].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })), folhas };
+}
+
+/** O que extrair: PDFs da raiz (por nome) e pastas com cartões (por caminho). Sem seleção, tudo. */
+export interface SelecaoExtracao {
+  arquivos: string[];
+  pastas: string[];
+}
+
+export function totalDaExtracao(db: Db, selecao?: SelecaoExtracao): number {
+  const pastas = selecao && new Set(selecao.pastas);
+  const cartoes = caminhosDosCartoes(db).filter((c) => !pastas || pastas.has(pastaDe(c.caminho))).length;
+  return cartoes + (selecao ? selecao.arquivos.length : ARQUIVOS_RAIZ.length);
+}
+
+async function montarArquivos(db: Db, anoServico: number, progresso?: Progresso, selecao?: SelecaoExtracao): Promise<Record<string, Uint8Array>> {
+  const quer = (arquivo: string) => !selecao || selecao.arquivos.includes(arquivo);
+  const pastas = selecao && new Set(selecao.pastas);
+  const cartoes = caminhosDosCartoes(db).filter((c) => !pastas || pastas.has(pastaDe(c.caminho)));
+  const total = totalDaExtracao(db, selecao);
   let feitos = 0;
   const passo = () => progresso?.(++feitos, total);
   const arquivos: Record<string, Uint8Array> = {};
 
+  const precisaModelo = cartoes.length > 0 || ARQUIVOS_RAIZ.slice(0, 3).some(quer);
+  const modelo = precisaModelo ? await carregarModelo() : new Uint8Array();
+
   const tot = totaisDoAno(db, anoServico);
   const cartoesTotais: [string, string, typeof tot.publicadores][] = [
-    ['Total (Publicadores).pdf', 'Publicadores', tot.publicadores],
-    ['Total (Pioneiros auxiliares).pdf', 'Pioneiros auxiliares', tot.auxiliares],
-    ['Total (Pioneiros Reg. Espe. e Missionários em campo).pdf', 'Pioneiros regulares, especiais e missionários em campo', tot.regulares],
+    [ARQUIVOS_RAIZ[0], 'Publicadores', tot.publicadores],
+    [ARQUIVOS_RAIZ[1], 'Pioneiros auxiliares', tot.auxiliares],
+    [ARQUIVOS_RAIZ[2], 'Pioneiros regulares, especiais e missionários em campo', tot.regulares],
   ];
   for (const [arquivo, nome, porMes] of cartoesTotais) {
+    if (!quer(arquivo)) continue;
     arquivos[arquivo] = await (await gerarS21Totais(modelo, nome, anoServico, porMes)).save();
     passo();
   }
-  arquivos['Grupos de Saída de Campo.pdf'] = await gerarPdfGrupos(db, { situacao: 'ativo' });
-  passo();
-  arquivos['Lista de Emergência.pdf'] = await gerarPdfEmergencia(db);
-  passo();
-  arquivos['Registro de Assistência (S-88).pdf'] = await gerarS88Bytes(db, anoServico);
-  passo();
+  if (quer(ARQUIVOS_RAIZ[3])) {
+    arquivos[ARQUIVOS_RAIZ[3]] = await gerarPdfGrupos(db, { situacao: 'ativo' });
+    passo();
+  }
+  if (quer(ARQUIVOS_RAIZ[4])) {
+    arquivos[ARQUIVOS_RAIZ[4]] = await gerarPdfEmergencia(db);
+    passo();
+  }
+  if (quer(ARQUIVOS_RAIZ[5])) {
+    arquivos[ARQUIVOS_RAIZ[5]] = await gerarS88Bytes(db, anoServico);
+    passo();
+  }
 
   for (const { p, caminho } of cartoes) {
     arquivos[caminho] = await (await gerarS21(modelo, p, anoServico)).save();
     passo();
   }
+  return arquivos;
+}
+
+/**
+ * Zip com o arquivo dos Registros de Publicador (S-21) organizado em pastas e, na raiz,
+ * os cartões de totais, o PDF dos grupos (só ativos), a lista de emergência por grupo e o S-88.
+ */
+export async function gerarExtracao(db: Db, anoServico: number, progresso?: Progresso, selecao?: SelecaoExtracao): Promise<Uint8Array> {
+  const { zipSync } = await import('fflate');
   // PDFs já são comprimidos; nível 0 deixa o zip rápido.
-  return zipSync(arquivos, { level: 0 });
+  return zipSync(await montarArquivos(db, anoServico, progresso, selecao), { level: 0 });
+}
+
+/**
+ * Extração da seleção: um único PDF da raiz sai como arquivo; qualquer pasta, ou mais de um item, vira .zip.
+ */
+export async function gerarSelecao(
+  db: Db,
+  anoServico: number,
+  selecao: SelecaoExtracao,
+  progresso?: Progresso,
+): Promise<{ nome: string; bytes: Uint8Array; mime: string; quantidade: number }> {
+  const arquivos = await montarArquivos(db, anoServico, progresso, selecao);
+  const quantidade = Object.keys(arquivos).length;
+  if (selecao.pastas.length === 0 && selecao.arquivos.length === 1) {
+    const [nome, bytes] = Object.entries(arquivos)[0];
+    return { nome, bytes, mime: 'application/pdf', quantidade };
+  }
+  const { zipSync } = await import('fflate');
+  return { nome: `Registros de Publicador (S-21) ${anoServico}.zip`, bytes: zipSync(arquivos, { level: 0 }), mime: 'application/zip', quantidade };
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { novoPublicador, PRIVILEGIOS, type Publicador } from '../domain/types';
+import { novoPublicador, PRIVILEGIOS, type Privilegio, type Publicador } from '../domain/types';
 import { moverPublicador, useStore } from '../store/store';
 import { Campo, Modal, Toggle } from './ui';
 import { CampoData } from './CampoData';
@@ -23,19 +23,22 @@ export function FormPublicador({
     if (aberto) setP(publicador ? structuredClone(publicador) : novoPublicador({ grupoId: grupoInicial }));
   }, [aberto, publicador, grupoInicial]);
 
+  /** Ancião e servo ministerial são só para irmãos. */
+  const soIrmao = (id: Privilegio) => id === 'anciao' || id === 'servo_ministerial';
   const set = <K extends keyof Publicador>(k: K, v: Publicador[K]) => setP((x) => ({ ...x, [k]: v }));
 
   function salvar() {
     if (!p.nome.trim()) return;
     const nome = p.nome.trim().replace(/\s+/g, ' ');
+    const privilegios = p.sexo === 'F' ? p.privilegios.filter((y) => !soIrmao(y)) : p.privilegios;
     atualizar((d) => {
       const i = d.publicadores.findIndex((x) => x.id === p.id);
       if (i < 0) {
-        d.publicadores.push({ ...p, nome });
+        d.publicadores.push({ ...p, nome, privilegios });
         return;
       }
       const grupoNovo = p.grupoId;
-      d.publicadores[i] = { ...p, nome, grupoId: d.publicadores[i].grupoId };
+      d.publicadores[i] = { ...p, nome, privilegios, grupoId: d.publicadores[i].grupoId };
       moverPublicador(d, p.id, grupoNovo);
       // Irmã não pode ser superintendente/ajudante.
       if (p.sexo === 'F')
@@ -98,7 +101,7 @@ export function FormPublicador({
               <button
                 type="button"
                 key={s}
-                onClick={() => set('sexo', s)}
+                onClick={() => setP((x) => ({ ...x, sexo: s, privilegios: s === 'F' ? x.privilegios.filter((y) => !soIrmao(y)) : x.privilegios }))}
                 className={`btn flex-1 border ${
                   p.sexo === s
                     ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300'
@@ -138,15 +141,18 @@ export function FormPublicador({
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             {PRIVILEGIOS.map((x) => {
               const marcado = p.privilegios.includes(x.id);
+              const bloqueado = p.sexo === 'F' && soIrmao(x.id);
               return (
                 <label
                   key={x.id}
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm ${
-                    marcado ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10' : 'border-slate-300 dark:border-slate-700'
-                  }`}
+                  title={bloqueado ? 'Só para irmãos' : undefined}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm ${
+                    bloqueado ? 'cursor-not-allowed border-slate-200 text-slate-400 dark:border-slate-800' : 'cursor-pointer'
+                  } ${marcado ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10' : bloqueado ? '' : 'border-slate-300 dark:border-slate-700'}`}
                 >
                   <Toggle
                     checked={marcado}
+                    disabled={bloqueado}
                     onChange={() =>
                       set('privilegios', marcado ? p.privilegios.filter((y) => y !== x.id) : [...p.privilegios, x.id])
                     }

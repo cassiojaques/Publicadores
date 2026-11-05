@@ -9,6 +9,20 @@
   html.dark {
     color-scheme: dark;
   }
+  /* Sem zoom com os dedos (o iOS ignora user-scalable; touch-action resolve) nem rolagem para os lados. */
+  html,
+  body {
+    touch-action: pan-x pan-y;
+    overflow-x: hidden;
+  }
+  /* Campos com menos de 16px fazem o iOS dar zoom ao focar. */
+  @media (max-width: 767px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
   body {
     @apply bg-[#eef1f8] text-slate-800 antialiased dark:bg-slate-950 dark:text-slate-200;
   }

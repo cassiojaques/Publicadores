@@ -43,7 +43,7 @@ function Indicador({ icone, rotulo, valor, detalhe, cor, onClick }: { icone: Rea
 
 function Cartao({ titulo, icone, subtitulo, className = '', children }: { titulo: string; icone: ReactNode; subtitulo?: ReactNode; className?: string; children: ReactNode }) {
   return (
-    <div className={`card p-5 ${className}`}>
+    <div className={`card min-w-0 p-5 ${className}`}>
       <h2 className="flex items-center gap-2 font-semibold">
         <span className="text-indigo-500">{icone}</span> {titulo}
       </h2>
@@ -436,7 +436,7 @@ export function Painel() {
 
       <MetaPioneiros anoServico={anoServico} {...pioneiros} />
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <SemParticipar {...semParticipar} />
 
         <Cartao titulo="Inativos" icone={<AlertTriangle size={18} />} subtitulo={`${stats.atencao.length} ${stats.atencao.length === 1 ? 'publicador' : 'publicadores'} · marcados à mão ou 6 meses sem participar`}>

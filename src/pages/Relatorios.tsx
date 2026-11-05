@@ -5,8 +5,8 @@ import {
 } from '../store/store';
 import { anoServicoDe, mesRelatorioAtual, nomeMes } from '../domain/serviceYear';
 import { faltantesPorGrupo, statusDoMes, textoFaltantes, totaisDoMes, type LinhaMes, type StatusMes } from '../domain/relatorios';
-import { auxiliarNoMes, type RelatorioMes, type TipoReuniao } from '../domain/types';
-import { formatarMedia, mediaMes, TIPOS_REUNIAO } from '../domain/assistencia';
+import { auxiliarNoMes, type RelatorioMes } from '../domain/types';
+import { formatarMedia, mediaMes } from '../domain/assistencia';
 import { Avatar, BadgesPrivilegio, Campo, Confirmar, Modal, Toggle, Vazio } from '../components/ui';
 import { gerarImagemFaltantes } from '../imagem/faltantes';
 import { salvarArquivoGerado } from '../storage/storage';
@@ -513,15 +513,7 @@ function ModalS1({ aberto, onFechar, mes, totais, ativos }: { aberto: boolean; o
     }
   }
   const n = (v: number) => String(v);
-  const assistencia = (tipo: TipoReuniao): CampoS1[] => {
-    const a = db.assistencia[mes]?.[tipo];
-    const media = mediaMes(a);
-    return [
-      { id: 'reunioes', rotulo: 'Reuniões', texto: a?.reunioes != null ? n(a.reunioes) : null },
-      { id: 'total', rotulo: 'Assistência total', texto: a?.total != null ? n(a.total) : null },
-      { id: 'media', rotulo: 'Média por reunião', texto: media !== null ? formatarMedia(media) : null },
-    ];
-  };
+  const mediaFim = mediaMes(db.assistencia[mes]?.fim);
   const quadros: { chave: string; titulo: string; campos: CampoS1[] }[] = [
     { chave: 'ativos', titulo: 'Publicadores ativos', campos: [{ id: 'ativos', rotulo: 'Ativos no mês', texto: n(ativos) }] },
     {
@@ -541,13 +533,21 @@ function ModalS1({ aberto, onFechar, mes, totais, ativos }: { aberto: boolean; o
         { id: 'horas', rotulo: 'Horas', texto: n(totais[chave].horas) },
       ],
     })),
-    ...TIPOS_REUNIAO.map(({ id, rotulo }) => ({ chave: `assist-${id}`, titulo: `Assistência · ${rotulo.replace('Reunião do ', '')}`, campos: assistencia(id) })),
   ];
-  const semAssistencia = TIPOS_REUNIAO.every(({ id }) => !db.assistencia[mes]?.[id]);
+  const assistenciaFim: (typeof quadros)[number] = {
+    chave: 'assist-fim',
+    titulo: 'Assistência · fim de semana',
+    campos: [{ id: 'media', rotulo: 'Média', texto: mediaFim !== null ? formatarMedia(mediaFim) : null }],
+  };
+  // Publicadores ativos e a assistência ficam lado a lado, no alto.
+  const [ativosQuadro, ...demais] = quadros;
+  const semAssistencia = mediaFim === null;
   return (
     <Modal aberto={aberto} titulo={`S-1 · ${nomeMes(mes)}`} largura="max-w-md" onFechar={onFechar} rodape={<button className="btn-ghost" onClick={onFechar}>Fechar</button>}>
       <div className="space-y-3">
-        {quadros.map(({ chave, titulo, campos }) => (
+        {[[ativosQuadro, assistenciaFim], demais].map((linha, i) => (
+          <div key={i} className={i === 0 ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
+            {linha.map(({ chave, titulo, campos }) => (
           <div key={chave} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{titulo}</p>
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -572,6 +572,8 @@ function ModalS1({ aberto, onFechar, mes, totais, ativos }: { aberto: boolean; o
                 );
               })}
             </div>
+          </div>
+            ))}
           </div>
         ))}
         {semAssistencia && (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core';
@@ -40,6 +40,20 @@ function Chip({ p, funcao, arrastando }: { p: Publicador; funcao?: 'S' | 'A'; ar
 }
 
 const ehCelular = () => typeof window !== 'undefined' && !window.matchMedia('(min-width: 768px)').matches;
+
+/** Acompanha a largura da tela: abaixo de 768px é celular. */
+function useCelular() {
+  const [c, setC] = useState(ehCelular);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const f = () => setC(!mq.matches);
+    mq.addEventListener('change', f);
+    return () => mq.removeEventListener('change', f);
+  }, []);
+  return c;
+}
+
+const semAcentoNome = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 function ChipArrastavel({ p, funcao, onAbrir, onMover }: { p: Publicador; funcao?: 'S' | 'A'; onAbrir: () => void; onMover: () => void }) {
   // No celular arrastar atrapalha a rolagem: lá o botão "Mover" escolhe o grupo.
@@ -181,8 +195,10 @@ function Coluna({
       <div className={`min-h-[48px] flex-1 flex-col gap-1 rounded-b-xl bg-slate-50/60 p-2 dark:bg-transparent ${mostrar ? 'flex' : 'max-md:hidden md:flex'}`}>
         {ordenados.map((p) => {
           const funcao = grupo?.superintendenteId === p.id ? 'S' : grupo?.ajudanteId === p.id ? 'A' : undefined;
+          // No desktop a busca só destaca o nome; os demais ficam esmaecidos.
+          const casa = !destaque.trim() || semAcentoNome(p.nome).includes(semAcentoNome(destaque.trim()));
           return (
-            <div key={p.id}>
+            <div key={p.id} className={casa ? '' : 'opacity-30'}>
               <ChipArrastavel p={p} funcao={funcao} onAbrir={() => navegar({ nome: 'publicador', id: p.id })} onMover={() => onToque(p)} />
             </div>
           );
@@ -237,17 +253,18 @@ export function Grupos() {
   const sensores = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const meses = useMemo(() => mesesComDados(db), [db]);
+  const celular = useCelular();
   const termo = semAcento(destaque.trim());
   const porGrupo = useMemo(() => {
     const m = new Map<string, Publicador[]>();
     for (const p of db.publicadores) {
       if (p.arquivado || (filtroSit !== 'todos' && situacao(p, meses) !== filtroSit)) continue;
-      if (termo && !semAcento(p.nome).includes(termo)) continue;
+      if (celular && termo && !semAcento(p.nome).includes(termo)) continue;
       const k = p.grupoId ?? SEM_GRUPO;
       m.set(k, [...(m.get(k) ?? []), p]);
     }
     return m;
-  }, [db.publicadores, filtroSit, meses, termo]);
+  }, [db.publicadores, filtroSit, meses, termo, celular]);
 
   function soltar(e: DragEndEvent) {
     setArrastado(null);
@@ -341,7 +358,7 @@ export function Grupos() {
             {semGrupo.length > 0 && (
               <Coluna grupo={null} membros={semGrupo} destaque={destaque} onAdicionar={() => setNovoEm(null)} onToque={setMover} />
             )}
-            {db.grupos.filter((g) => !termo || (porGrupo.get(g.id)?.length ?? 0) > 0).map((g) => (
+            {db.grupos.filter((g) => !celular || !termo || (porGrupo.get(g.id)?.length ?? 0) > 0).map((g) => (
               <Coluna
                 key={g.id}
                 grupo={g}
@@ -354,7 +371,7 @@ export function Grupos() {
               />
             ))}
           </div>
-          {termo && porGrupo.size === 0 && <p className="py-6 text-center text-sm text-slate-500">Ninguém com esse nome.</p>}
+          {celular && termo && porGrupo.size === 0 && <p className="py-6 text-center text-sm text-slate-500">Ninguém com esse nome.</p>}
           <DragOverlay>{pArrastado && <Chip p={pArrastado} arrastando />}</DragOverlay>
         </DndContext>
       )}

@@ -71,7 +71,21 @@ function quebrar(texto: string, fonte: PDFFont, largura: number): string[] {
   return linhas;
 }
 
-/** Lista de emergência (telefone, endereço e contato de emergência), separada por grupo de campo. */
+/** Mesmas cores dos grupos no mapa e nos relatórios. */
+const CORES_GRUPO = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#e11d48', '#8b5cf6', '#14b8a6', '#f97316', '#84cc16', '#ec4899', '#0891b2', '#a16207'];
+const COR_SEM_GRUPO = '#64748b';
+
+const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255) as [number, number, number];
+/** Mistura a cor com branco: `t` = 0 é a cor pura, 1 é branco. */
+const clarear = (h: string, t: number) => {
+  const [r, g, b] = hex(h);
+  return rgb(r + (1 - r) * t, g + (1 - g) * t, b + (1 - b) * t);
+};
+
+/**
+ * Lista de emergência (telefone, endereço e contato de emergência). Cada grupo de campo começa numa
+ * página própria, com sua cor, e nunca divide a página com outro grupo.
+ */
 export async function gerarPdfEmergencia(db: Db): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle('Lista de Emergência');
@@ -86,59 +100,59 @@ export async function gerarPdfEmergencia(db: Db): Promise<Uint8Array> {
 
   const membros = db.publicadores.filter((p) => !p.arquivado);
   const porNome = (a: Publicador, b: Publicador) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true });
-  const grupos = [...db.grupos.map((g) => ({ id: g.id as string | null, nome: g.nome })), { id: null, nome: 'Sem grupo' }]
+  const grupos = [
+    ...db.grupos.map((g, i) => ({ id: g.id as string | null, nome: g.nome, cor: CORES_GRUPO[i % CORES_GRUPO.length] })),
+    { id: null, nome: 'Sem grupo', cor: COR_SEM_GRUPO },
+  ]
     .map((g) => ({ ...g, membros: membros.filter((p) => (p.grupoId ?? null) === g.id).sort(porNome) }))
     .filter((g) => g.membros.length > 0);
 
   let pagina: PDFPage;
   let y = 0;
   let nPagina = 0;
-  const novaPagina = () => {
+
+  /** Nova página de um grupo: título geral, faixa colorida com o grupo e o cabeçalho das colunas. */
+  const novaPagina = (g: (typeof grupos)[number], titulo: string, continuacao: boolean) => {
     pagina = doc.addPage(A4_PAISAGEM);
     nPagina++;
     const topo = H - MARGEM;
+    const corG = rgb(...hex(g.cor));
     pagina.drawText(`Lista de Emergência${db.congregacao.nome ? ' — ' + limpar(db.congregacao.nome) : ''}`, { x: MARGEM, y: topo - 12, size: 14, font: negrito, color: cor.texto });
-    const resumo = `${membros.length} publicadores · ${data} · página ${nPagina}`;
+    const resumo = `${data} · página ${nPagina}`;
     pagina.drawText(resumo, { x: W - MARGEM - normal.widthOfTextAtSize(resumo, 8), y: topo - 10, size: 8, font: normal, color: cor.suave });
-    pagina.drawLine({ start: { x: MARGEM, y: topo - 20 }, end: { x: W - MARGEM, y: topo - 20 }, thickness: 1.2, color: cor.destaque });
+    pagina.drawLine({ start: { x: MARGEM, y: topo - 20 }, end: { x: W - MARGEM, y: topo - 20 }, thickness: 1.2, color: corG });
     y = topo - 30;
-  };
-  const cabecalhoColunas = () => {
-    COLUNAS.forEach((c, i) => pagina.drawText(c.titulo.toUpperCase(), { x: xs[i] + PAD, y: y - 8, size: 6.5, font: negrito, color: cor.suave }));
-    y -= 12;
-    pagina.drawLine({ start: { x: MARGEM, y }, end: { x: W - MARGEM, y }, thickness: 0.5, color: cor.borda });
-  };
-  const tituloGrupo = (texto: string) => {
-    const h = 18;
-    pagina.drawRectangle({ x: MARGEM, y: y - h, width: util, height: h, color: cor.fundo });
-    pagina.drawRectangle({ x: MARGEM, y: y - h, width: 2.5, height: h, color: cor.destaque });
-    pagina.drawText(limpar(texto), { x: MARGEM + 8, y: y - 12.5, size: 10.5, font: negrito, color: cor.texto });
-    y -= h + 2;
-    cabecalhoColunas();
+
+    const h = 24;
+    pagina.drawRectangle({ x: MARGEM, y: y - h, width: util, height: h, color: corG });
+    pagina.drawText(limpar(continuacao ? `${g.nome} (continuação)` : g.nome), { x: MARGEM + 10, y: y - 16, size: 13, font: negrito, color: rgb(1, 1, 1) });
+    const lado = limpar(titulo);
+    if (lado) pagina.drawText(lado, { x: W - MARGEM - 10 - normal.widthOfTextAtSize(lado, 9), y: y - 15.5, size: 9, font: normal, color: rgb(1, 1, 1) });
+    y -= h;
+
+    const hc = 14;
+    pagina.drawRectangle({ x: MARGEM, y: y - hc, width: util, height: hc, color: clarear(g.cor, 0.85) });
+    COLUNAS.forEach((c, i) => pagina.drawText(c.titulo.toUpperCase(), { x: xs[i] + PAD + 4, y: y - 9.5, size: 6.5, font: negrito, color: cor.texto }));
+    y -= hc;
   };
 
-  novaPagina();
   for (const g of grupos) {
     const grupo = db.grupos.find((x) => x.id === g.id);
     const nomeDe = (id: string | null | undefined) => db.publicadores.find((p) => p.id === id)?.nome;
     const funcoes = [grupo && nomeDe(grupo.superintendenteId), grupo && nomeDe(grupo.ajudanteId)].filter(Boolean).join(' e ');
-    const titulo = `${g.nome}${funcoes ? ` — ${funcoes}` : ''} (${g.membros.length})`;
-    // O título do grupo não fica sozinho no pé da página.
-    if (y - 18 - 14 - ENTRELINHA * 2 < MARGEM) novaPagina();
-    else if (g !== grupos[0]) y -= 10;
-    tituloGrupo(titulo);
+    const titulo = `${funcoes ? `${funcoes} · ` : ''}${g.membros.length} ${g.membros.length === 1 ? 'publicador' : 'publicadores'}`;
+    novaPagina(g, titulo, false);
     g.membros.forEach((p, i) => {
       const e = dadosEmergencia(p);
-      const celulas = [p.nome, p.telefone, p.endereco, e.contato, e.endereco].map((t, c) => quebrar(limpar(t), c === 0 ? negrito : normal, largs[c] - PAD * 2));
-      const h = Math.max(...celulas.map((l) => l.length)) * ENTRELINHA + PAD;
-      if (y - h < MARGEM) {
-        novaPagina();
-        tituloGrupo(`${g.nome} (cont.)`);
-      }
-      if (i % 2 === 1) pagina.drawRectangle({ x: MARGEM, y: y - h, width: util, height: h, color: cor.zebra });
+      const celulas = [p.nome, p.telefone, p.endereco, e.contato, e.endereco].map((t, c) => quebrar(limpar(t), c === 0 ? negrito : normal, largs[c] - PAD * 2 - 4));
+      const h = Math.max(...celulas.map((l) => l.length)) * ENTRELINHA + PAD + 2;
+      if (y - h < MARGEM) novaPagina(g, titulo, true);
+      if (i % 2 === 1) pagina.drawRectangle({ x: MARGEM, y: y - h, width: util, height: h, color: clarear(g.cor, 0.94) });
+      pagina.drawRectangle({ x: MARGEM, y: y - h, width: 2.5, height: h, color: rgb(...hex(g.cor)) });
+      pagina.drawLine({ start: { x: MARGEM, y: y - h }, end: { x: W - MARGEM, y: y - h }, thickness: 0.3, color: clarear(g.cor, 0.75) });
       celulas.forEach((linhas, c) =>
         linhas.forEach((l, j) =>
-          pagina.drawText(l, { x: xs[c] + PAD, y: y - PAD - 6 - j * ENTRELINHA, size: TAM, font: c === 0 ? negrito : normal, color: cor.texto }),
+          pagina.drawText(l, { x: xs[c] + PAD + 4, y: y - PAD - 6 - j * ENTRELINHA, size: TAM, font: c === 0 ? negrito : normal, color: cor.texto }),
         ),
       );
       y -= h;

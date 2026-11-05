@@ -47,14 +47,15 @@ function CelulaTexto({ valor, onSalvar, className = '', ...resto }: { valor: str
   );
 }
 
-function Pilula({ ativo, cor, titulo, onClick, children }: { ativo: boolean; cor: string; titulo: string; onClick: () => void; children: string }) {
+function Pilula({ ativo, cor, titulo, onClick, children, bloqueado }: { ativo: boolean; cor: string; titulo: string; onClick: () => void; children: string; bloqueado?: boolean }) {
   return (
     <button
       type="button"
-      title={`${titulo}${ativo ? ' (clique para remover)' : ' (clique para marcar)'}`}
+      disabled={bloqueado}
+      title={bloqueado ? `${titulo} (só para irmãos)` : `${titulo}${ativo ? ' (clique para remover)' : ' (clique para marcar)'}`}
       onClick={onClick}
       className={`rounded-md border px-1.5 py-0.5 text-[11px] font-semibold leading-none transition ${
-        ativo ? cor : 'border-dashed border-slate-300 text-slate-300 hover:border-slate-400 hover:text-slate-500 dark:border-slate-700 dark:text-slate-600'
+        bloqueado ? 'cursor-not-allowed border-dashed border-slate-200 text-slate-200 dark:border-slate-800 dark:text-slate-700' : ativo ? cor : 'border-dashed border-slate-300 text-slate-300 hover:border-slate-400 hover:text-slate-500 dark:border-slate-700 dark:text-slate-600'
       }`}
     >
       {children}
@@ -579,9 +580,17 @@ export function Publicadores() {
                                 ativo={tem}
                                 cor={CORES_PRIV[x.id]}
                                 titulo={x.label}
+                                bloqueado={p.sexo === 'F' && (x.id === 'anciao' || x.id === 'servo_ministerial')}
                                 onClick={() =>
                                   editar(p.id, (y) => {
-                                    y.privilegios = tem ? y.privilegios.filter((z) => z !== x.id) : [...y.privilegios, x.id];
+                                    if (tem) {
+                                      y.privilegios = y.privilegios.filter((z) => z !== x.id);
+                                      return;
+                                    }
+                                    // Só um entre ancião/servo e só um entre PR/PE/MC/PAP.
+                                    const grupo: Privilegio[] = x.id === 'anciao' || x.id === 'servo_ministerial' ? ['anciao', 'servo_ministerial'] : ['pioneiro_regular', 'pioneiro_especial', 'missionario'];
+                                    y.privilegios = [...y.privilegios.filter((z) => !grupo.includes(z)), x.id];
+                                    if (grupo.includes('pioneiro_regular')) y.auxiliarPermanente = false;
                                   })
                                 }
                               >
@@ -593,7 +602,12 @@ export function Publicadores() {
                             ativo={p.auxiliarPermanente}
                             cor={CORES_PRIV.pap}
                             titulo="Pioneiro auxiliar permanente"
-                            onClick={() => editar(p.id, (y) => (y.auxiliarPermanente = !y.auxiliarPermanente))}
+                            onClick={() =>
+                              editar(p.id, (y) => {
+                                y.auxiliarPermanente = !y.auxiliarPermanente;
+                                if (y.auxiliarPermanente) y.privilegios = y.privilegios.filter((z) => !['pioneiro_regular', 'pioneiro_especial', 'missionario'].includes(z));
+                              })
+                            }
                           >
                             PAP
                           </Pilula>

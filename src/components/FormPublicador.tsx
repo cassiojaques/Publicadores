@@ -25,6 +25,8 @@ export function FormPublicador({
 
   /** Ancião e servo ministerial são só para irmãos. */
   const soIrmao = (id: Privilegio) => id === 'anciao' || id === 'servo_ministerial';
+  /** Só um entre ancião e servo; só um entre PR, PE, MC e PAP. */
+  const GRUPOS_EXCLUSIVOS: Privilegio[][] = [['anciao', 'servo_ministerial'], ['pioneiro_regular', 'pioneiro_especial', 'missionario']];
   const set = <K extends keyof Publicador>(k: K, v: Publicador[K]) => setP((x) => ({ ...x, [k]: v }));
 
   function salvar() {
@@ -154,7 +156,16 @@ export function FormPublicador({
                     checked={marcado}
                     disabled={bloqueado}
                     onChange={() =>
-                      set('privilegios', marcado ? p.privilegios.filter((y) => y !== x.id) : [...p.privilegios, x.id])
+                      setP((v) => {
+                        if (marcado) return { ...v, privilegios: v.privilegios.filter((y) => y !== x.id) };
+                        const grupo = GRUPOS_EXCLUSIVOS.find((g) => g.includes(x.id)) ?? [];
+                        const pioneiro = x.id === 'pioneiro_regular' || x.id === 'pioneiro_especial' || x.id === 'missionario';
+                        return {
+                          ...v,
+                          privilegios: [...v.privilegios.filter((y) => !grupo.includes(y)), x.id],
+                          auxiliarPermanente: pioneiro ? false : v.auxiliarPermanente,
+                        };
+                      })
                     }
                   />
                   {x.label}
@@ -166,7 +177,13 @@ export function FormPublicador({
         <label className="flex items-start gap-2 text-sm sm:col-span-2">
           <Toggle className="mt-0.5"
             checked={p.auxiliarPermanente}
-            onChange={(e) => set('auxiliarPermanente', e.target.checked)}
+            onChange={(e) =>
+              setP((v) => ({
+                ...v,
+                auxiliarPermanente: e.target.checked,
+                privilegios: e.target.checked ? v.privilegios.filter((y) => !['pioneiro_regular', 'pioneiro_especial', 'missionario'].includes(y)) : v.privilegios,
+              }))
+            }
           />
           <span>
             <span className="font-medium">Pioneiro auxiliar permanente</span>

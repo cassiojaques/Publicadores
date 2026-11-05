@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core';
-import { ChevronDown, Download, GripVertical, IdCard, Loader2, MoreHorizontal, Pencil, Plus, Trash2, UserPlus, UsersRound } from 'lucide-react';
+import { ArrowRightLeft, ChevronDown, Download, GripVertical, Loader2, MoreHorizontal, Pencil, Plus, Trash2, UserPlus, UsersRound } from 'lucide-react';
 import { mesesComDados, moverPublicador, removerGrupo, useStore } from '../store/store';
 import { situacao } from '../domain/serviceYear';
 import { novoId, type Grupo, type Publicador } from '../domain/types';
@@ -18,6 +18,7 @@ const OPCOES_SIT: { v: FiltroSituacao; t: string }[] = [
 import { salvarArquivoGerado } from '../storage/storage';
 
 const SEM_GRUPO = '__sem__';
+const semAcento = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 function Chip({ p, funcao, arrastando }: { p: Publicador; funcao?: 'S' | 'A'; arrastando?: boolean }) {
   return (
@@ -40,20 +41,25 @@ function Chip({ p, funcao, arrastando }: { p: Publicador; funcao?: 'S' | 'A'; ar
 
 const ehCelular = () => typeof window !== 'undefined' && !window.matchMedia('(min-width: 768px)').matches;
 
-function ChipArrastavel({ p, funcao, onAbrir, onToque }: { p: Publicador; funcao?: 'S' | 'A'; onAbrir: () => void; onToque: () => void }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: p.id });
+function ChipArrastavel({ p, funcao, onAbrir, onMover }: { p: Publicador; funcao?: 'S' | 'A'; onAbrir: () => void; onMover: () => void }) {
+  // No celular arrastar atrapalha a rolagem: lá o botão "Mover" escolhe o grupo.
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: p.id, disabled: ehCelular() });
   return (
-    <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      onDoubleClick={onAbrir}
-      // No celular arrastar atrapalha a rolagem: o toque abre um painel com as ações.
-      onClick={() => ehCelular() && onToque()}
-      className={`cursor-grab active:cursor-grabbing max-md:py-1 ${isDragging ? 'opacity-30' : ''}`}
-      title="Arraste para outro grupo · duplo clique para abrir"
-    >
-      <Chip p={p} funcao={funcao} />
+    <div className="flex items-center gap-1.5">
+      <div
+        ref={setNodeRef}
+        {...attributes}
+        {...listeners}
+        onDoubleClick={onAbrir}
+        onClick={() => ehCelular() && onAbrir()}
+        className={`min-w-0 flex-1 md:cursor-grab md:active:cursor-grabbing max-md:py-1 ${isDragging ? 'opacity-30' : ''}`}
+        title="Arraste para outro grupo · duplo clique para abrir"
+      >
+        <Chip p={p} funcao={funcao} />
+      </div>
+      <button className="btn-outline shrink-0 px-2.5 py-1 text-xs md:hidden" onClick={onMover} aria-label={`Mover ${p.nome} para outro grupo`}>
+        <ArrowRightLeft size={13} /> Mover
+      </button>
     </div>
   );
 }
@@ -80,6 +86,8 @@ function Coluna({
   const [menu, setMenu] = useState(false);
   // No celular os grupos começam recolhidos, para a tela não virar uma lista infinita.
   const [aberta, setAberta] = useState(() => !ehCelular());
+  // Buscando por nome, os grupos com resultado ficam abertos.
+  const mostrar = aberta || !!destaque;
   const irmaos = membros.filter((p) => p.sexo === 'M');
   const nomeDe = (id: string | null) => db.publicadores.find((p) => p.id === id);
 
@@ -109,9 +117,9 @@ function Coluna({
           type="button"
           className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left md:pointer-events-none"
           onClick={() => setAberta(!aberta)}
-          aria-expanded={aberta}
+          aria-expanded={mostrar}
         >
-          <ChevronDown size={16} className={`shrink-0 text-indigo-500 transition md:hidden ${aberta ? '' : '-rotate-90'}`} />
+          <ChevronDown size={16} className={`shrink-0 text-indigo-500 transition md:hidden ${mostrar ? '' : '-rotate-90'}`} />
           <h3 className="truncate font-semibold text-indigo-950 dark:text-indigo-100">{grupo?.nome ?? 'Sem grupo'}</h3>
           <span className="badge bg-white text-indigo-700 ring-1 ring-indigo-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-0">{membros.length}</span>
         </button>
@@ -137,7 +145,7 @@ function Coluna({
         )}
       </div>
 
-      {grupo && !aberta && (
+      {grupo && !mostrar && (
         <p className="truncate px-3 py-2 text-xs text-slate-500 md:hidden">
           Sup.: <b className="font-medium text-slate-700 dark:text-slate-300">{nomeDe(grupo.superintendenteId)?.nome ?? '—'}</b> · Aj.:{' '}
           <b className="font-medium text-slate-700 dark:text-slate-300">{nomeDe(grupo.ajudanteId)?.nome ?? '—'}</b>
@@ -145,7 +153,7 @@ function Coluna({
       )}
 
       {grupo && (
-        <div className={`space-y-2 border-b border-slate-200 px-3 py-2 text-sm dark:border-slate-800 md:space-y-1 ${aberta ? '' : 'max-md:hidden'}`}>
+        <div className={`space-y-2 border-b border-slate-200 px-3 py-2 text-sm dark:border-slate-800 md:space-y-1 ${mostrar ? '' : 'max-md:hidden'}`}>
           {(
             [
               ['superintendenteId', 'Superintendente'],
@@ -170,13 +178,12 @@ function Coluna({
         </div>
       )}
 
-      <div className={`min-h-[48px] flex-1 flex-col gap-1 rounded-b-xl bg-slate-50/60 p-2 dark:bg-transparent ${aberta ? 'flex' : 'max-md:hidden md:flex'}`}>
+      <div className={`min-h-[48px] flex-1 flex-col gap-1 rounded-b-xl bg-slate-50/60 p-2 dark:bg-transparent ${mostrar ? 'flex' : 'max-md:hidden md:flex'}`}>
         {ordenados.map((p) => {
           const funcao = grupo?.superintendenteId === p.id ? 'S' : grupo?.ajudanteId === p.id ? 'A' : undefined;
-          const casa = !destaque || p.nome.toLowerCase().includes(destaque.toLowerCase());
           return (
-            <div key={p.id} className={casa ? '' : 'opacity-30'}>
-              <ChipArrastavel p={p} funcao={funcao} onAbrir={() => navegar({ nome: 'publicador', id: p.id })} onToque={() => onToque(p)} />
+            <div key={p.id}>
+              <ChipArrastavel p={p} funcao={funcao} onAbrir={() => navegar({ nome: 'publicador', id: p.id })} onMover={() => onToque(p)} />
             </div>
           );
         })}
@@ -187,7 +194,7 @@ function Coluna({
 }
 
 export function Grupos() {
-  const { db, atualizar, toast, navegar } = useStore();
+  const { db, atualizar, toast } = useStore();
   const [arrastado, setArrastado] = useState<string | null>(null);
   const [nomeModal, setNomeModal] = useState<{ id: string | null; nome: string } | null>(null);
   const [excluir, setExcluir] = useState<Grupo | null>(null);
@@ -230,15 +237,17 @@ export function Grupos() {
   const sensores = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const meses = useMemo(() => mesesComDados(db), [db]);
+  const termo = semAcento(destaque.trim());
   const porGrupo = useMemo(() => {
     const m = new Map<string, Publicador[]>();
     for (const p of db.publicadores) {
       if (p.arquivado || (filtroSit !== 'todos' && situacao(p, meses) !== filtroSit)) continue;
+      if (termo && !semAcento(p.nome).includes(termo)) continue;
       const k = p.grupoId ?? SEM_GRUPO;
       m.set(k, [...(m.get(k) ?? []), p]);
     }
     return m;
-  }, [db.publicadores, filtroSit, meses]);
+  }, [db.publicadores, filtroSit, meses, termo]);
 
   function soltar(e: DragEndEvent) {
     setArrastado(null);
@@ -282,7 +291,7 @@ export function Grupos() {
           <h1 className="text-xl font-semibold md:text-2xl">Grupos de campo</h1>
           <p className="text-sm text-slate-500">
             <span className="hidden md:inline">Arraste os publicadores entre os grupos para mudá-los.</span>
-            <span className="md:hidden">Toque num publicador para movê-lo ou abrir o cartão.</span>
+            <span className="md:hidden">Toque no nome para abrir o cartão ou em Mover para trocar de grupo.</span>
           </p>
         </div>
         <button className="btn-primary shrink-0" onClick={() => setNomeModal({ id: null, nome: `Grupo ${db.grupos.length + 1}` })} aria-label="Novo grupo">
@@ -312,7 +321,7 @@ export function Grupos() {
           <Toggle checked={pdfSiglas} onChange={(e) => mudarPdfSiglas(e.target.checked)} />
           Designações no PDF
         </label>
-        <input className="input order-3 min-w-0 flex-1 md:w-48 md:flex-none" placeholder="Destacar nome…" value={destaque} onChange={(e) => setDestaque(e.target.value)} />
+        <input className="input order-3 min-w-0 flex-1 md:w-48 md:flex-none" placeholder="Buscar nome…" value={destaque} onChange={(e) => setDestaque(e.target.value)} />
         <button className="btn-outline order-4 shrink-0" onClick={exportarPdf} disabled={gerando || db.grupos.length === 0}>
           {gerando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Gerar PDF
         </button>
@@ -332,7 +341,7 @@ export function Grupos() {
             {semGrupo.length > 0 && (
               <Coluna grupo={null} membros={semGrupo} destaque={destaque} onAdicionar={() => setNovoEm(null)} onToque={setMover} />
             )}
-            {db.grupos.map((g) => (
+            {db.grupos.filter((g) => !termo || (porGrupo.get(g.id)?.length ?? 0) > 0).map((g) => (
               <Coluna
                 key={g.id}
                 grupo={g}
@@ -345,16 +354,14 @@ export function Grupos() {
               />
             ))}
           </div>
+          {termo && porGrupo.size === 0 && <p className="py-6 text-center text-sm text-slate-500">Ninguém com esse nome.</p>}
           <DragOverlay>{pArrastado && <Chip p={pArrastado} arrastando />}</DragOverlay>
         </DndContext>
       )}
 
-      <Folha aberto={!!mover} titulo={mover?.nome ?? ''} onFechar={() => setMover(null)}>
+      <Folha aberto={!!mover} titulo={mover ? `Mover ${mover.nome}` : ''} onFechar={() => setMover(null)}>
         {mover && (
           <div className="space-y-3">
-            <button className="btn-outline w-full justify-start py-2.5" onClick={() => { navegar({ nome: 'publicador', id: mover.id }); setMover(null); }}>
-              <IdCard size={16} /> Abrir cartão
-            </button>
             <div>
               <p className="label">Mover para</p>
               <div className="flex flex-wrap gap-2">

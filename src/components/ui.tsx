@@ -54,7 +54,8 @@ export function Modal({
   if (!aberto) return null;
   return (
     // No celular a janela vira um painel que sobe da base, com o rodapé sempre à vista.
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/40 backdrop-blur-sm sm:items-start sm:overflow-y-auto sm:p-4 sm:pt-[8vh]">
+    // `!m-0`: dentro de um `space-y-*` o fundo ganharia margem no topo e deixaria uma faixa sem desfoque.
+    <div className="fixed inset-0 z-40 !m-0 flex items-end justify-center bg-slate-900/40 backdrop-blur-sm sm:items-start sm:overflow-y-auto sm:p-4 sm:pt-[8vh]">
       <div className={`card flex max-h-[92dvh] w-full flex-col rounded-b-none sm:max-h-none sm:rounded-b-xl ${largura}`} role="dialog" aria-modal="true" aria-label={titulo}>
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800 sm:px-5">
           <h2 className="font-semibold">{titulo}</h2>
@@ -81,7 +82,7 @@ export function Folha({ aberto, titulo, onFechar, children, rodape }: { aberto: 
   }, [aberto, onFechar]);
   if (!aberto) return null;
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/50 backdrop-blur-sm sm:items-center sm:p-4" onClick={onFechar}>
+    <div className="fixed inset-0 z-40 !m-0 flex items-end justify-center bg-slate-900/50 backdrop-blur-sm sm:items-center sm:p-4" onClick={onFechar}>
       <div
         className="flex max-h-[88dvh] w-full flex-col rounded-t-2xl bg-white shadow-2xl dark:bg-slate-900 sm:max-w-lg sm:rounded-2xl"
         role="dialog"

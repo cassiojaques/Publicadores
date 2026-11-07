@@ -548,16 +548,17 @@ function ModalS1({ aberto, onFechar, mes, totais, ativos }: { aberto: boolean; o
         {[[ativosQuadro, assistenciaFim], demais].map((linha, i) => (
           <div key={i} className={i === 0 ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
             {linha.map(({ chave, titulo, campos }) => (
-          <div key={chave} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{titulo}</p>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div key={chave} className="flex flex-col rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+            {/* Na linha de cima os títulos têm 1 ou 2 linhas; a altura mínima mantém os números alinhados. */}
+            <p className={`text-xs font-semibold uppercase leading-4 tracking-wide text-slate-500 ${i === 0 ? 'min-h-8' : ''}`}>{titulo}</p>
+            <div className={`mt-2 grid flex-1 gap-2 ${campos.length === 1 ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-3'}`}>
               {campos.map((c) => {
                 const id = `${chave}-${c.id}`;
                 return (
                   <div key={id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50">
                     <span className="leading-tight">
                       <span className={`block text-2xl font-semibold tabular-nums ${c.texto === null ? 'text-slate-300 dark:text-slate-600' : ''}`}>{c.texto ?? '—'}</span>
-                      <span className="block text-xs text-slate-500">{c.rotulo}</span>
+                      <span className="block whitespace-nowrap text-xs text-slate-500">{c.rotulo}</span>
                     </span>
                     <button
                       className="rounded-md p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-30 disabled:hover:bg-transparent dark:hover:bg-slate-700"

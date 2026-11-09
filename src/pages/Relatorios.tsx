@@ -529,8 +529,8 @@ function ModalS1({ aberto, onFechar, mes, totais, ativos }: { aberto: boolean; o
       titulo: chave === 'auxiliares' ? 'Pioneiros auxiliares' : 'Pioneiros regulares',
       campos: [
         { id: 'relatorios', rotulo: 'Relatórios', texto: n(totais[chave].relatorios) },
-        { id: 'estudos', rotulo: 'Estudos', texto: n(totais[chave].estudos) },
         { id: 'horas', rotulo: 'Horas', texto: n(totais[chave].horas) },
+        { id: 'estudos', rotulo: 'Estudos', texto: n(totais[chave].estudos) },
       ],
     })),
   ];

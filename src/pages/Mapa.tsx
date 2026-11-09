@@ -36,12 +36,13 @@ function Chip({ ativo, onClick, cor, children }: { ativo: boolean; onClick: () =
   );
 }
 
-function iconePino(cor: string, qtd: number) {
+/** `deslocamento`: afasta o desenho do pino (em pixels) sem mudar a posição real, para separar quem mora no mesmo ponto. */
+function iconePino(cor: string, qtd: number, deslocamento: [number, number] = [0, 0]) {
   const tam = qtd > 1 ? 28 : 22;
   return L.divIcon({
     className: '',
     iconSize: [tam, tam],
-    iconAnchor: [tam / 2, tam / 2],
+    iconAnchor: [tam / 2 - deslocamento[0], tam / 2 - deslocamento[1]],
     html: `<span style="display:flex;align-items:center;justify-content:center;width:${tam}px;height:${tam}px;border-radius:9999px;background:${cor};border:3px solid #fff;box-shadow:0 0 0 1.5px rgba(15,23,42,.7),0 2px 6px rgba(0,0,0,.5);color:#fff;font:700 12px system-ui">${qtd > 1 ? qtd : ''}</span>`,
   });
 }
@@ -100,6 +101,7 @@ export function Mapa() {
   }, []);
 
   // Desenha os pontos. Pessoas no mesmo endereço (família) viram um pino só, com o número.
+  // Em "Ajustar pontos" o pino é desagrupado: cada pessoa tem o seu, lado a lado, para poder mover um a um.
   useEffect(() => {
     const c = camada.current;
     if (!c) return;
@@ -110,10 +112,18 @@ export function Mapa() {
       const k = `${l.lat.toFixed(5)},${l.lng.toFixed(5)}`;
       porPonto.set(k, [...(porPonto.get(k) ?? []), p]);
     }
-    for (const pessoas of porPonto.values()) {
+    const pinos = [...porPonto.values()].flatMap((pessoas) => {
+      if (!ajustar || pessoas.length === 1) return [{ pessoas, desloc: [0, 0] as [number, number] }];
+      const raio = 12 + pessoas.length * 3;
+      return pessoas.map((p, i) => {
+        const ang = (2 * Math.PI * i) / pessoas.length - Math.PI / 2;
+        return { pessoas: [p], desloc: [Math.cos(ang) * raio, Math.sin(ang) * raio] as [number, number] };
+      });
+    });
+    for (const { pessoas, desloc } of pinos) {
       const l = localAtual(pessoas[0])!;
       const marcador = L.marker([l.lat, l.lng], {
-        icon: iconePino(corDe(pessoas[0].grupoId), pessoas.length),
+        icon: iconePino(corDe(pessoas[0].grupoId), pessoas.length, desloc),
         draggable: ajustar,
         title: pessoas.map((p) => p.nome).join(', '),
       });
@@ -132,7 +142,9 @@ export function Mapa() {
       conteudo.append(info);
       marcador.bindPopup(conteudo);
       marcador.on('dragend', () => {
-        const { lat, lng } = marcador.getLatLng();
+        // O pino é desenhado deslocado; vale o ponto onde ele foi solto.
+        const m = mapa.current!;
+        const { lat, lng } = m.containerPointToLatLng(m.latLngToContainerPoint(marcador.getLatLng()).add(desloc));
         const ids = new Set(pessoas.map((p) => p.id));
         atualizar((d) => {
           for (const x of d.publicadores) if (ids.has(x.id)) x.local = { lat, lng, endereco: x.endereco.trim(), manual: true };
@@ -219,7 +231,7 @@ export function Mapa() {
         </div>
         <label className="flex items-center gap-2 border-t border-slate-100 pt-3 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400 md:border-0 md:pt-0" title="Arraste os pontos para corrigir a posição">
           <Toggle checked={ajustar} onChange={(e) => setAjustar(e.target.checked)} />
-          <span className="whitespace-nowrap">Ajustar pontos</span> <span className="hidden text-xs text-slate-400 sm:inline">· arraste um ponto para corrigir a posição</span>
+          <span className="whitespace-nowrap">Ajustar pontos</span> <span className="hidden text-xs text-slate-400 sm:inline">· quem mora no mesmo ponto aparece separado; arraste cada um</span>
         </label>
       </div>
 

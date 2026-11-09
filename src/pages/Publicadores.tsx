@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, ClipboardCopy, FileStack, FilterX, IdCard, MapPin, Phone, Plus, Search, SlidersHorizontal, Users, X } from 'lucide-react';
-import { mesesComDados, moverPublicador, useStore } from '../store/store';
-import { situacao, type Situacao } from '../domain/serviceYear';
-import { PRIVILEGIOS, type Privilegio, type Publicador } from '../domain/types';
+import { definirAuxiliar, mesesComDados, moverPublicador, useStore } from '../store/store';
+import { creditosAprovados, situacao, type Situacao } from '../domain/serviceYear';
+import { auxiliarNoMes, PRIVILEGIOS, type Privilegio, type Publicador } from '../domain/types';
 import { Avatar, BadgeSituacao, BadgesPrivilegio, Folha, Toggle, Vazio } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
 import { ExtrairDados } from '../components/ExtrairDados';
@@ -63,10 +63,11 @@ function Pilula({ ativo, cor, titulo, onClick, children, bloqueado }: { ativo: b
   );
 }
 
-type FiltroDesig = Privilegio | 'pap' | 'nb';
+type FiltroDesig = Privilegio | 'pap' | 'pa' | 'nb';
 const DESIGNACOES_FILTRO: { id: FiltroDesig; rotulo: string; titulo: string }[] = [
   ...PRIVILEGIOS.map((x) => ({ id: x.id, rotulo: x.curto, titulo: x.label })),
   { id: 'pap', rotulo: 'PAP', titulo: 'Pioneiro auxiliar permanente' },
+  { id: 'pa', rotulo: 'PA', titulo: 'Pioneiro auxiliar só neste mês (não inclui os permanentes)' },
   { id: 'nb', rotulo: 'Não batizado', titulo: 'Publicador não batizado' },
 ];
 
@@ -137,10 +138,31 @@ function filtrosSalvos(): Filtros {
   }
 }
 
-type ColunaOrdem = 'nome' | 'sexo' | 'batizado' | 'desigs' | 'grupo' | 'telefone' | 'endereco' | 'situacao';
+type ColunaOrdem = 'nome' | 'sexo' | 'batizado' | 'desigs' | 'auxiliar' | 'horas' | 'grupo' | 'telefone' | 'endereco' | 'situacao';
 interface Ordem {
   col: ColunaOrdem;
   dir: 1 | -1;
+}
+
+const MES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+/** "2026-11" → "nov/26". */
+const mesCurto = (chave: string) => `${MES_CURTO[Number(chave.slice(5, 7)) - 1]}/${chave.slice(2, 4)}`;
+
+/** Mês corrente do calendário, chave "AAAA-MM". */
+function mesDeHoje(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** Último relatório com horas (ou créditos) lançadas: mês, horas e créditos aprovados. */
+function ultimasHoras(p: Publicador): { mes: string; horas: number; creditos: number } | null {
+  const mes = Object.keys(p.relatorios)
+    .filter((m) => p.relatorios[m].horas != null || p.relatorios[m].creditos)
+    .sort()
+    .pop();
+  if (!mes) return null;
+  const r = p.relatorios[mes];
+  return { mes, horas: r.horas ?? 0, creditos: creditosAprovados(r) };
 }
 
 const porNome = (a: Publicador, b: Publicador) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true });
@@ -237,7 +259,10 @@ export function Publicadores() {
     setOrdem((o) => (o?.col !== col ? { col, dir: 1 } : o.dir === 1 ? { col, dir: -1 } : null));
 
   const baseBusca = buscar(db.publicadores, q).filter((p) => p.arquivado === arquivados);
-  const temDesig = (p: Publicador, d: FiltroDesig) => (d === 'pap' ? p.auxiliarPermanente : d === 'nb' ? !p.batizado : p.privilegios.includes(d));
+  const mesAtual = mesDeHoje();
+  // PA = auxiliar só neste mês; quem quiser todos os auxiliares marca PAP e PA.
+  const temDesig = (p: Publicador, d: FiltroDesig) =>
+    d === 'pap' ? p.auxiliarPermanente : d === 'pa' ? !p.auxiliarPermanente && p.auxiliarMeses.includes(mesAtual) : d === 'nb' ? !p.batizado : p.privilegios.includes(d);
   type Faceta = 'grupos' | 'sexos' | 'sits' | 'desigs';
   /** Aplica os filtros, menos o de `ignorar` — assim cada botão mostra quantos resultaria ao marcá-lo. */
   const passa = (p: Publicador, ignorar?: Faceta) =>
@@ -256,6 +281,8 @@ export function Publicadores() {
         case 'sexo': return p.sexo;
         case 'batizado': return p.batizado ? 1 : 0;
         case 'desigs': return menorDesig(p);
+        case 'auxiliar': return p.auxiliarPermanente ? 2 : auxiliarNoMes(p, mesAtual) ? 1 : '';
+        case 'horas': return ultimasHoras(p)?.horas ?? '';
         case 'grupo': return nomeGrupo(p);
         case 'telefone': return p.telefone.replace(/\D/g, '');
         case 'endereco': return p.endereco;
@@ -456,7 +483,7 @@ export function Publicadores() {
                         {s === 'inativo' && <BadgeSituacao s={s} />}
                       </span>
                       <span className="mt-1 flex flex-wrap items-center gap-1">
-                        <BadgesPrivilegio p={p} />
+                        <BadgesPrivilegio p={p} mes={mesAtual} />
                         <span className="text-xs text-slate-500">{grupo ?? 'Sem grupo'}</span>
                       </span>
                     </span>
@@ -507,6 +534,8 @@ export function Publicadores() {
                   <ThOrdenavel col="sexo" ordem={ordem} onOrdenar={ordenarPor}>Sexo</ThOrdenavel>
                   <ThOrdenavel col="batizado" ordem={ordem} onOrdenar={ordenarPor} titulo="Ordenar por batizado">Bat.</ThOrdenavel>
                   <ThOrdenavel col="desigs" ordem={ordem} onOrdenar={ordenarPor}>Designações</ThOrdenavel>
+                  <ThOrdenavel col="auxiliar" ordem={ordem} onOrdenar={ordenarPor} titulo="Ordenar por pioneiro auxiliar">{`P. aux. · ${mesCurto(mesAtual)}`}</ThOrdenavel>
+                  <ThOrdenavel col="horas" ordem={ordem} onOrdenar={ordenarPor} titulo="Último relatório com horas (e créditos aprovados)">Últimas horas</ThOrdenavel>
                   <ThOrdenavel col="grupo" ordem={ordem} onOrdenar={ordenarPor}>Grupo</ThOrdenavel>
                   <ThOrdenavel col="telefone" ordem={ordem} onOrdenar={ordenarPor} className="min-w-[130px]">Telefone</ThOrdenavel>
                   <ThOrdenavel col="endereco" ordem={ordem} onOrdenar={ordenarPor} className="min-w-[220px]">Endereço</ThOrdenavel>
@@ -612,6 +641,36 @@ export function Publicadores() {
                             PAP
                           </Pilula>
                         </div>
+                      </td>
+                      <td className="px-3 py-0.5">
+                        <div className="flex items-center gap-2">
+                          <Toggle
+                            checked={auxiliarNoMes(p, mesAtual)}
+                            disabled={p.auxiliarPermanente}
+                            aria-label={`${p.nome} é pioneiro auxiliar em ${mesCurto(mesAtual)}`}
+                            onChange={(e) => atualizar((d) => definirAuxiliar(d, p.id, mesAtual, e.target.checked))}
+                          />
+                          {p.auxiliarPermanente ? (
+                            <span className={`badge ${CORES_PRIV.pap}`} title="Pioneiro auxiliar permanente: sempre auxiliar">PAP</span>
+                          ) : (
+                            p.auxiliarMeses.includes(mesAtual) && (
+                              <span className={`badge ${CORES_PRIV.pap}`} title={`Pioneiro auxiliar só em ${mesCurto(mesAtual)}`}>{mesCurto(mesAtual)}</span>
+                            )
+                          )}
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-0.5 tabular-nums">
+                        {(() => {
+                          const h = ultimasHoras(p);
+                          if (!h) return <span className="text-slate-300 dark:text-slate-600">—</span>;
+                          return (
+                            <span title={`Relatório de ${mesCurto(h.mes)}`}>
+                              <span className="font-medium">{h.horas}</span>
+                              {h.creditos > 0 && <span className="text-emerald-600 dark:text-emerald-400"> (+{h.creditos})</span>}
+                              <span className="ml-1.5 text-xs text-slate-400">{mesCurto(h.mes)}</span>
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-1 py-0.5">
                         <select

@@ -263,13 +263,24 @@ export function Publicadores() {
   // PA = auxiliar só neste mês; quem quiser todos os auxiliares marca PAP e PA.
   const temDesig = (p: Publicador, d: FiltroDesig) =>
     d === 'pap' ? p.auxiliarPermanente : d === 'pa' ? !p.auxiliarPermanente && p.auxiliarMeses.includes(mesAtual) : d === 'nb' ? !p.batizado : p.privilegios.includes(d);
+  /**
+   * Designações de tipos diferentes somam (E): "A" + "PR" mostra só quem é ancião e pioneiro regular.
+   * As que se excluem entre si (ancião/servo; PR/PE/MC/PAP/PA) valem como OU dentro do próprio tipo.
+   */
+  const passaDesigs = (p: Publicador) => {
+    const tipo = (d: FiltroDesig) => (d === 'anciao' || d === 'servo_ministerial' ? 'ancServo' : d === 'nb' ? 'nb' : 'pioneiro');
+    return (['ancServo', 'pioneiro', 'nb'] as const).every((t) => {
+      const sel = desigs.filter((d) => tipo(d) === t);
+      return !sel.length || sel.some((d) => temDesig(p, d));
+    });
+  };
   type Faceta = 'grupos' | 'sexos' | 'sits' | 'desigs';
   /** Aplica os filtros, menos o de `ignorar` — assim cada botão mostra quantos resultaria ao marcá-lo. */
   const passa = (p: Publicador, ignorar?: Faceta) =>
     (ignorar === 'grupos' || !grupos.length || grupos.includes(p.grupoId ?? 'sem')) &&
     (ignorar === 'sexos' || !sexos.length || sexos.includes(p.sexo)) &&
     (ignorar === 'sits' || !sits.length || sits.includes(situacoes.get(p.id)!)) &&
-    (ignorar === 'desigs' || !desigs.length || desigs.some((d) => temDesig(p, d)));
+    (ignorar === 'desigs' || passaDesigs(p));
   const filtrada = baseBusca.filter((p) => passa(p));
   const lista = (() => {
     if (!ordem) return filtrada;

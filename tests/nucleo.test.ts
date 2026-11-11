@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { cifrar, decifrar, derivarChave, SenhaIncorretaError } from '../src/crypto/crypto';
-import { anoServicoDe, creditosAprovados, interpretarData, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico, totalComCreditos, ultimoMesFechado } from '../src/domain/serviceYear';
+import { anoServicoDe, anosCompletos, textoAnos, creditosAprovados, interpretarData, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico, totalComCreditos, ultimoMesFechado } from '../src/domain/serviceYear';
+import { menorDeIdadeNaEscola, proximaEscola } from '../src/domain/escolaPioneiros';
 import { dbVazio, novoPublicador } from '../src/domain/types';
 import { aplicar, analisarJson, comMes, lerColadoRelatorio, mesSugerido, normalizarMes, prever, relataHoras, semAlteracao } from '../src/import/relatorioCampo';
 import { definirAuxiliar, definirRelatorio, excluirMes, garantirMes, excluirRelatorio, mesesComDados, moverPublicador } from '../src/store/store';
@@ -234,6 +235,48 @@ describe('datas coladas', () => {
     expect(interpretarData('31/02/2020')).toBeNull();
     expect(interpretarData('abc')).toBeNull();
     expect(interpretarData('')).toBeNull();
+  });
+});
+
+describe('anos desde uma data', () => {
+  const hoje = new Date(2026, 10, 11); // 11/11/2026
+  it('conta só anos completos', () => {
+    expect(anosCompletos('1990-11-11', hoje)).toBe(36);
+    expect(anosCompletos('1990-11-12', hoje)).toBe(35);
+    expect(anosCompletos('1990-12-01', hoje)).toBe(35);
+  });
+  it('texto em português', () => {
+    expect(textoAnos('2010-01-01', hoje)).toBe('16 anos');
+    expect(textoAnos('2025-11-11', hoje)).toBe('1 ano');
+    expect(textoAnos('2026-03-01', hoje)).toBe('menos de 1 ano');
+  });
+  it('vazio ou futuro não mostram nada', () => {
+    expect(textoAnos('', hoje)).toBe('');
+    expect(textoAnos('2027-01-01', hoje)).toBe('');
+  });
+});
+
+describe('escola de pioneiros', () => {
+  const base = { escolaPioneiros: null, escolaNaoConcluida: false, inicioPioneiro: '' };
+  it('sem dados não há próximo ano', () => {
+    expect(proximaEscola(base)).toBeNull();
+  });
+  it('primeira vez: até 1.º de setembro faz no ano seguinte; depois, daqui a dois anos', () => {
+    expect(proximaEscola({ ...base, inicioPioneiro: '2026-09-01' })).toEqual({ ano: 2027, motivo: 'primeira' });
+    expect(proximaEscola({ ...base, inicioPioneiro: '2026-03-10' })).toEqual({ ano: 2027, motivo: 'primeira' });
+    expect(proximaEscola({ ...base, inicioPioneiro: '2026-09-02' })).toEqual({ ano: 2028, motivo: 'primeira' });
+    expect(proximaEscola({ ...base, inicioPioneiro: '2026-12-15' })).toEqual({ ano: 2028, motivo: 'primeira' });
+  });
+  it('quem já fez espera 5 anos', () => {
+    expect(proximaEscola({ ...base, inicioPioneiro: '2015-01-01', escolaPioneiros: 2027 })).toEqual({ ano: 2032, motivo: 'repeticao' });
+  });
+  it('quem não conseguiu cursar é convidado no ano seguinte', () => {
+    expect(proximaEscola({ ...base, escolaPioneiros: 2026, escolaNaoConcluida: true })).toEqual({ ano: 2027, motivo: 'reconvite' });
+  });
+  it('menor de 18 no ano da escola', () => {
+    expect(menorDeIdadeNaEscola('2010-05-01', 2027)).toBe(true);
+    expect(menorDeIdadeNaEscola('2009-05-01', 2027)).toBe(false);
+    expect(menorDeIdadeNaEscola('', 2027)).toBe(false);
   });
 });
 

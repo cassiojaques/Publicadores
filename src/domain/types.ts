@@ -33,6 +33,12 @@ export interface Publicador {
   batismo: string;
   /** Publicador não batizado quando falso. */
   batizado: boolean;
+  /** Quando começou como pioneiro regular, AAAA-MM-DD ou ''. */
+  inicioPioneiro: string;
+  /** Ano em que cursou (ou foi convidado para) a Escola de Pioneiros; null se nunca. */
+  escolaPioneiros: number | null;
+  /** Convidado, mas não conseguiu cursar ou perdeu mais da metade das aulas: volta a ser convidado no ano seguinte. */
+  escolaNaoConcluida: boolean;
   sexo: Sexo;
   esperanca: Esperanca;
   privilegios: Privilegio[];
@@ -116,6 +122,9 @@ export function novoPublicador(parcial: Partial<Publicador> = {}): Publicador {
     nascimento: '',
     batismo: '',
     batizado: true,
+    inicioPioneiro: '',
+    escolaPioneiros: null,
+    escolaNaoConcluida: false,
     sexo: 'M',
     esperanca: 'outras_ovelhas',
     privilegios: [],

@@ -143,7 +143,23 @@ export function formatarData(iso: string): string {
   return d && m && a ? `${d}/${m}/${a}` : iso;
 }
 
-const MESES_POR_NOME = Object.fromEntries(
+/** Anos completos desde a data "AAAA-MM-DD" até hoje (idade, tempo de batismo...). null se a data for vazia ou futura. */
+export function anosCompletos(iso: string, hoje = new Date()): number | null {
+  const [a, m, d] = iso.split('-').map(Number);
+  if (!a || !m || !d) return null;
+  let anos = hoje.getFullYear() - a;
+  if (hoje.getMonth() + 1 < m || (hoje.getMonth() + 1 === m && hoje.getDate() < d)) anos--;
+  return anos < 0 ? null : anos;
+}
+
+/** "34 anos", "1 ano" ou "menos de 1 ano"; '' se não houver data. */
+export function textoAnos(iso: string, hoje = new Date()): string {
+  const n = anosCompletos(iso, hoje);
+  if (n === null) return '';
+  return n === 0 ? 'menos de 1 ano' : `${n} ${n === 1 ? 'ano' : 'anos'}`;
+}
+
+const MESES_POR_NOME =Object.fromEntries(
   NOMES_MES.map((n, i) => [n.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().slice(0, 3), i + 1]),
 );
 

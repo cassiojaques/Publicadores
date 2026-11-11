@@ -99,6 +99,9 @@ function normalizar(db: Db): Db {
     publicadores: (db.publicadores ?? []).map((p) => ({
       ...p,
       batizado: p.batizado ?? true,
+      inicioPioneiro: p.inicioPioneiro ?? '',
+      escolaPioneiros: p.escolaPioneiros ?? null,
+      escolaNaoConcluida: p.escolaNaoConcluida ?? false,
       inativo: p.inativo ?? false,
       auxiliarPermanente: p.auxiliarPermanente ?? false,
       auxiliarMeses: p.auxiliarMeses ?? [],

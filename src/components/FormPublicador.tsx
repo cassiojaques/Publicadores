@@ -3,6 +3,14 @@ import { novoPublicador, PRIVILEGIOS, type Privilegio, type Publicador } from '.
 import { moverPublicador, useStore } from '../store/store';
 import { Campo, Modal, Toggle } from './ui';
 import { CampoData } from './CampoData';
+import { textoAnos } from '../domain/serviceYear';
+import { ANOS_ENTRE_ESCOLAS, DICA_ESCOLA, proximaEscola } from '../domain/escolaPioneiros';
+
+/** "· 34 anos" ao lado do rótulo de uma data; nada se não houver data. */
+function AnosAoLado({ iso }: { iso: string }) {
+  const t = textoAnos(iso);
+  return t ? <span className="font-normal text-slate-500">· {t}</span> : null;
+}
 
 /** Cria (publicador ausente) ou edita um publicador. */
 export function FormPublicador({
@@ -27,6 +35,7 @@ export function FormPublicador({
   const soIrmao = (id: Privilegio) => id === 'anciao' || id === 'servo_ministerial';
   /** Só um entre ancião e servo; só um entre PR, PE, MC e PAP. */
   const GRUPOS_EXCLUSIVOS: Privilegio[][] = [['anciao', 'servo_ministerial'], ['pioneiro_regular', 'pioneiro_especial', 'missionario']];
+  const proxima = proximaEscola(p);
   const set = <K extends keyof Publicador>(k: K, v: Publicador[K]) => setP((x) => ({ ...x, [k]: v }));
 
   function salvar() {
@@ -81,12 +90,16 @@ export function FormPublicador({
           <input className="input" autoFocus value={p.nome} onChange={(e) => set('nome', e.target.value)} />
         </Campo>
         <div>
-          <span className="label">Data de nascimento</span>
+          <span className="label">
+            Data de nascimento <AnosAoLado iso={p.nascimento} />
+          </span>
           <CampoData rotulo="Data de nascimento" valor={p.nascimento} onChange={(v) => set('nascimento', v)} />
         </div>
         <div>
           <span className="label flex items-center justify-between">
-            Data de batismo
+            <span>
+              Data de batismo <AnosAoLado iso={p.batismo} />
+            </span>
             <label className="flex items-center gap-1.5 font-normal">
               <Toggle
                 checked={!p.batizado}
@@ -174,6 +187,50 @@ export function FormPublicador({
             })}
           </div>
         </div>
+        {(p.privilegios.includes('pioneiro_regular') || p.inicioPioneiro || p.escolaPioneiros) && (
+          <>
+            <div>
+              <span className="label">
+                Início como pioneiro regular <AnosAoLado iso={p.inicioPioneiro} />
+              </span>
+              <CampoData rotulo="Início como pioneiro regular" valor={p.inicioPioneiro} onChange={(v) => set('inicioPioneiro', v)} />
+            </div>
+            <div>
+              <span className="label">Ano em que fez a Escola de Pioneiros</span>
+              <input
+                className="input"
+                type="number"
+                inputMode="numeric"
+                min={1990}
+                max={2100}
+                placeholder="Nunca fez"
+                aria-label="Ano em que fez a Escola de Pioneiros"
+                value={p.escolaPioneiros ?? ''}
+                onChange={(e) => {
+                  const n = e.target.value === '' ? null : Number(e.target.value);
+                  setP((x) => ({ ...x, escolaPioneiros: n, escolaNaoConcluida: n ? x.escolaNaoConcluida : false }));
+                }}
+              />
+            </div>
+            {p.escolaPioneiros ? (
+              <label className="flex items-start gap-2 text-sm sm:col-span-2">
+                <Toggle className="mt-0.5" checked={p.escolaNaoConcluida} onChange={(e) => set('escolaNaoConcluida', e.target.checked)} />
+                <span>
+                  <span className="font-medium">Não conseguiu cursar ou perdeu mais da metade das aulas</span>
+                  <span className="block text-xs text-slate-500">
+                    Doença ou emergência inesperada: volta a ser convidado no ano seguinte (em vez de esperar {ANOS_ENTRE_ESCOLAS} anos).
+                  </span>
+                </span>
+              </label>
+            ) : null}
+            {proxima && (
+              <p className="text-sm text-slate-600 dark:text-slate-300 sm:col-span-2">
+                Próxima Escola de Pioneiros: <b>{proxima.ano}</b>
+                <span className="text-slate-500"> · {DICA_ESCOLA[proxima.motivo]}</span>
+              </p>
+            )}
+          </>
+        )}
         <label className="flex items-start gap-2 text-sm sm:col-span-2">
           <Toggle className="mt-0.5"
             checked={p.auxiliarPermanente}

@@ -3,10 +3,11 @@ import { Archive, ArchiveRestore, ArrowLeft, Download, Loader2, Pencil, Phone, T
 import { definirAuxiliar, definirRelatorio, excluirRelatorio, mesesComDados, useStore } from '../store/store';
 import {
   anosServicoComDados, creditosAprovados, LIMITE_HORAS_COM_CREDITO, MESES_ANO_SERVICO, mesesDoAnoServico,
-  situacao, totaisAnoServico, totalComCreditos,
+  formatarData, situacao, textoAnos, totaisAnoServico, totalComCreditos,
 } from '../domain/serviceYear';
 import { auxiliarNoMes, type RelatorioMes } from '../domain/types';
 import { urlWhatsapp } from '../domain/contato';
+import { DICA_ESCOLA, proximaEscola } from '../domain/escolaPioneiros';
 import { Avatar, BadgeSituacao, BadgesPrivilegio, Confirmar, IconeWhatsapp, SeletorAnoServico, Toggle } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
 import { gerarS21Bytes } from '../pdf/s21';
@@ -53,6 +54,12 @@ export function PublicadorDetalhe({ id }: { id: string }) {
   }
 
   const pioneiro = p.privilegios.includes('pioneiro_regular');
+  const datas = ([
+    ['Nascimento', p.nascimento],
+    ['Batismo', p.batismo],
+    ['Pioneiro regular desde', p.inicioPioneiro],
+  ] as const).filter(([, iso]) => iso);
+  const escola = proximaEscola(p);
 
   /** Setas andam entre os campos da tabela, como numa planilha. */
   function navegarComSetas(e: KeyboardEvent<HTMLTableSectionElement>) {
@@ -116,6 +123,24 @@ export function PublicadorDetalhe({ id }: { id: string }) {
             {grupo ? grupo.nome : 'Sem grupo'}
             {funcao && ` · ${funcao}`}
           </p>
+          {(datas.length > 0 || escola) && (
+            <dl className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-slate-500">
+              {datas.map(([rotulo, iso]) => (
+                <div key={rotulo}>
+                  <dt className="inline">{rotulo}: </dt>
+                  <dd className="inline text-slate-700 dark:text-slate-300">
+                    <span className="whitespace-nowrap">{formatarData(iso)} <span className="text-slate-500">· {textoAnos(iso)}</span></span>
+                  </dd>
+                </div>
+              ))}
+              {escola && (
+                <div>
+                  <dt className="inline">Próxima Escola de Pioneiros: </dt>
+                  <dd className="inline text-slate-700 dark:text-slate-300" title={DICA_ESCOLA[escola.motivo]}>{escola.ano}</dd>
+                </div>
+              )}
+            </dl>
+          )}
           {p.telefone && (
             <a href={`tel:${p.telefone.replace(/[^\d+]/g, '')}`} className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:underline dark:text-indigo-300">
               <Phone size={14} /> {p.telefone}

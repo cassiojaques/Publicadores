@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, ClipboardCopy, FileStack, FilterX, IdCard, MapPin, Phone, Plus, Search, SlidersHorizontal, Users, X } from 'lucide-react';
 import { definirAuxiliar, mesesComDados, moverPublicador, useStore } from '../store/store';
 import { creditosAprovados, situacao, type Situacao } from '../domain/serviceYear';
+import { DICA_ESCOLA, menorDeIdadeNaEscola, proximaEscola } from '../domain/escolaPioneiros';
 import { auxiliarNoMes, PRIVILEGIOS, type Privilegio, type Publicador } from '../domain/types';
 import { Avatar, BadgeSituacao, BadgesPrivilegio, Folha, Toggle, Vazio } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
@@ -138,7 +139,7 @@ function filtrosSalvos(): Filtros {
   }
 }
 
-type ColunaOrdem = 'nome' | 'sexo' | 'batizado' | 'desigs' | 'auxiliar' | 'horas' | 'grupo' | 'telefone' | 'endereco' | 'situacao';
+type ColunaOrdem = 'nome' | 'sexo' | 'batizado' | 'desigs' | 'auxiliar' | 'horas' | 'escola' | 'grupo' | 'telefone' | 'endereco' | 'situacao';
 interface Ordem {
   col: ColunaOrdem;
   dir: 1 | -1;
@@ -163,6 +164,26 @@ function ultimasHoras(p: Publicador): { mes: string; horas: number; creditos: nu
   if (!mes) return null;
   const r = p.relatorios[mes];
   return { mes, horas: r.horas ?? 0, creditos: creditosAprovados(r) };
+}
+
+/** Próximo ano da Escola de Pioneiros; âmbar quando o ano já passou (falta registrar que cursou ou convidar). */
+function EscolaPioneiros({ p }: { p: Publicador }) {
+  const e = proximaEscola(p);
+  if (!e) return <span className="text-slate-300 dark:text-slate-600">—</span>;
+  const anoHoje = new Date().getFullYear();
+  const passou = e.ano < anoHoje;
+  const menor = menorDeIdadeNaEscola(p.nascimento, e.ano);
+  const dica = [
+    DICA_ESCOLA[e.motivo][0].toUpperCase() + DICA_ESCOLA[e.motivo].slice(1),
+    passou && 'O ano já passou: se ele já cursou, registre o ano da escola no cadastro.',
+    menor && 'Menor de 18 anos: só faz a escola se um dos pais ou o responsável legal se qualificar para a mesma turma.',
+  ].filter(Boolean).join(' ');
+  return (
+    <span title={dica} className={passou ? 'text-amber-600 dark:text-amber-400' : e.ano === anoHoje ? 'font-semibold text-indigo-600 dark:text-indigo-300' : ''}>
+      {e.ano}
+      {menor && <span className="ml-1.5 text-xs text-slate-400">&lt;18</span>}
+    </span>
+  );
 }
 
 const porNome = (a: Publicador, b: Publicador) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true });
@@ -294,6 +315,7 @@ export function Publicadores() {
         case 'desigs': return menorDesig(p);
         case 'auxiliar': return p.auxiliarPermanente ? 2 : auxiliarNoMes(p, mesAtual) ? 1 : '';
         case 'horas': return ultimasHoras(p)?.horas ?? '';
+        case 'escola': return proximaEscola(p)?.ano ?? '';
         case 'grupo': return nomeGrupo(p);
         case 'telefone': return p.telefone.replace(/\D/g, '');
         case 'endereco': return p.endereco;
@@ -547,6 +569,7 @@ export function Publicadores() {
                   <ThOrdenavel col="desigs" ordem={ordem} onOrdenar={ordenarPor}>Designações</ThOrdenavel>
                   <ThOrdenavel col="auxiliar" ordem={ordem} onOrdenar={ordenarPor} titulo="Ordenar por pioneiro auxiliar">{`P. aux. · ${mesCurto(mesAtual)}`}</ThOrdenavel>
                   <ThOrdenavel col="horas" ordem={ordem} onOrdenar={ordenarPor} titulo="Último relatório com horas (e créditos aprovados)">Últimas horas</ThOrdenavel>
+                  <ThOrdenavel col="escola" ordem={ordem} onOrdenar={ordenarPor} titulo="Próximo ano da Escola de Pioneiros">Escola de pioneiros</ThOrdenavel>
                   <ThOrdenavel col="grupo" ordem={ordem} onOrdenar={ordenarPor}>Grupo</ThOrdenavel>
                   <ThOrdenavel col="telefone" ordem={ordem} onOrdenar={ordenarPor} className="min-w-[130px]">Telefone</ThOrdenavel>
                   <ThOrdenavel col="endereco" ordem={ordem} onOrdenar={ordenarPor} className="min-w-[220px]">Endereço</ThOrdenavel>
@@ -682,6 +705,9 @@ export function Publicadores() {
                             </span>
                           );
                         })()}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-0.5 tabular-nums">
+                        <EscolaPioneiros p={p} />
                       </td>
                       <td className="px-1 py-0.5">
                         <select

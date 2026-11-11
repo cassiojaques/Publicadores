@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { cifrar, decifrar, derivarChave, SenhaIncorretaError } from '../src/crypto/crypto';
 import { anoServicoDe, anosCompletos, textoAnos, creditosAprovados, interpretarData, mesesDoAnoServico, rotuloAnoServico, situacao, totaisAnoServico, totalComCreditos, ultimoMesFechado } from '../src/domain/serviceYear';
-import { menorDeIdadeNaEscola, proximaEscola } from '../src/domain/escolaPioneiros';
+import { dicaEscola, menorDeIdadeNaEscola, proximaEscola } from '../src/domain/escolaPioneiros';
 import { dbVazio, novoPublicador } from '../src/domain/types';
 import { aplicar, analisarJson, comMes, lerColadoRelatorio, mesSugerido, normalizarMes, prever, relataHoras, semAlteracao } from '../src/import/relatorioCampo';
 import { definirAuxiliar, definirRelatorio, excluirMes, garantirMes, excluirRelatorio, mesesComDados, moverPublicador } from '../src/store/store';
@@ -272,6 +272,15 @@ describe('escola de pioneiros', () => {
   });
   it('quem não conseguiu cursar é convidado no ano seguinte', () => {
     expect(proximaEscola({ ...base, escolaPioneiros: 2026, escolaNaoConcluida: true })).toEqual({ ano: 2027, motivo: 'reconvite' });
+  });
+  it('outra data: vale o ano escolhido, com o motivo, e guarda o calculado', () => {
+    const e = proximaEscola({ ...base, escolaPioneiros: 2027, escolaOutraData: true, escolaOutroAno: 2034, escolaOutroMotivo: ' saúde ' });
+    expect(e).toEqual({ ano: 2034, motivo: 'outra', anoCalculado: 2032, detalhe: 'saúde' });
+    expect(dicaEscola(e!)).toBe('o publicador quer fazer em outra data: saúde (pela regra seria 2032)');
+  });
+  it('outra data ligada sem ano, ou desligada, usa a regra', () => {
+    expect(proximaEscola({ ...base, escolaPioneiros: 2027, escolaOutraData: true, escolaOutroAno: null })?.ano).toBe(2032);
+    expect(proximaEscola({ ...base, escolaPioneiros: 2027, escolaOutraData: false, escolaOutroAno: 2034 })?.ano).toBe(2032);
   });
   it('menor de 18 no ano da escola', () => {
     expect(menorDeIdadeNaEscola('2010-05-01', 2027)).toBe(true);

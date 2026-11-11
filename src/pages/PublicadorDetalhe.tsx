@@ -7,7 +7,7 @@ import {
 } from '../domain/serviceYear';
 import { auxiliarNoMes, type RelatorioMes } from '../domain/types';
 import { urlWhatsapp } from '../domain/contato';
-import { DICA_ESCOLA, proximaEscola } from '../domain/escolaPioneiros';
+import { dicaEscola, proximaEscola } from '../domain/escolaPioneiros';
 import { Avatar, BadgeSituacao, BadgesPrivilegio, Confirmar, IconeWhatsapp, SeletorAnoServico, Toggle } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
 import { gerarS21Bytes } from '../pdf/s21';
@@ -136,7 +136,7 @@ export function PublicadorDetalhe({ id }: { id: string }) {
               {escola && (
                 <div>
                   <dt className="inline">Próxima Escola de Pioneiros: </dt>
-                  <dd className="inline text-slate-700 dark:text-slate-300" title={DICA_ESCOLA[escola.motivo]}>{escola.ano}</dd>
+                  <dd className="inline text-slate-700 dark:text-slate-300" title={dicaEscola(escola)}>{escola.ano}</dd>
                 </div>
               )}
             </dl>

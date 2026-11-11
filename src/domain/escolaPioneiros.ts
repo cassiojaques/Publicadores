@@ -5,9 +5,10 @@ export const ANOS_ENTRE_ESCOLAS = 5;
 /** Idade mínima no primeiro dia da escola (menores só com um dos pais/responsável na turma). */
 export const IDADE_MINIMA_ESCOLA = 18;
 
-export type MotivoEscola = 'primeira' | 'repeticao' | 'reconvite';
+export type MotivoEscola = 'primeira' | 'repeticao' | 'reconvite' | 'outra';
 
 export const DICA_ESCOLA: Record<MotivoEscola, string> = {
+  outra: 'o publicador quer fazer em outra data',
   primeira: 'primeira vez (começou como pioneiro até 1.º de setembro do ano anterior)',
   repeticao: `${ANOS_ENTRE_ESCOLAS} anos depois da última escola`,
   reconvite: 'não cursou ou perdeu mais da metade; convidar de novo (confira se continua no serviço de pioneiro sem interrupção)',
@@ -16,6 +17,19 @@ export const DICA_ESCOLA: Record<MotivoEscola, string> = {
 export interface ProximaEscola {
   ano: number;
   motivo: MotivoEscola;
+  /** Quando `motivo` é "outra": o ano que a regra daria e o motivo escrito pelo usuário. */
+  anoCalculado?: number | null;
+  detalhe?: string;
+}
+
+type DadosEscola = Pick<Publicador, 'escolaPioneiros' | 'escolaNaoConcluida' | 'inicioPioneiro'> &
+  Partial<Pick<Publicador, 'escolaOutraData' | 'escolaOutroAno' | 'escolaOutroMotivo'>>;
+
+/** Texto de apoio (tooltip) com o motivo, incluindo o que o usuário escreveu em "outra data". */
+export function dicaEscola(e: ProximaEscola): string {
+  const base = DICA_ESCOLA[e.motivo];
+  if (e.motivo !== 'outra') return base;
+  return [base + (e.detalhe ? `: ${e.detalhe}` : ''), e.anoCalculado ? `(pela regra seria ${e.anoCalculado})` : ''].filter(Boolean).join(' ');
 }
 
 /**
@@ -24,8 +38,16 @@ export interface ProximaEscola {
  *  - Foi convidado, mas não conseguiu cursar ou perdeu mais da metade das aulas: no ano seguinte (Y + 1).
  *  - Nunca cursou: quem começou como pioneiro até 1.º de setembro do ano X faz a escola em X + 1;
  *    quem começou depois, em X + 2.
+ *  - Quer fazer em outra data: vale o ano escolhido (a regra continua disponível em `anoCalculado`).
  */
-export function proximaEscola(p: Pick<Publicador, 'escolaPioneiros' | 'escolaNaoConcluida' | 'inicioPioneiro'>): ProximaEscola | null {
+export function proximaEscola(p: DadosEscola): ProximaEscola | null {
+  const calculada = escolaCalculada(p);
+  if (p.escolaOutraData && p.escolaOutroAno)
+    return { ano: p.escolaOutroAno, motivo: 'outra', anoCalculado: calculada?.ano ?? null, detalhe: (p.escolaOutroMotivo ?? '').trim() };
+  return calculada;
+}
+
+function escolaCalculada(p: DadosEscola): ProximaEscola | null {
   if (p.escolaPioneiros) {
     return p.escolaNaoConcluida
       ? { ano: p.escolaPioneiros + 1, motivo: 'reconvite' }

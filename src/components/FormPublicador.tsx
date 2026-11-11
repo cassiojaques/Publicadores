@@ -4,7 +4,7 @@ import { moverPublicador, useStore } from '../store/store';
 import { Campo, Modal, Toggle } from './ui';
 import { CampoData } from './CampoData';
 import { textoAnos } from '../domain/serviceYear';
-import { ANOS_ENTRE_ESCOLAS, DICA_ESCOLA, proximaEscola } from '../domain/escolaPioneiros';
+import { ANOS_ENTRE_ESCOLAS, dicaEscola, proximaEscola } from '../domain/escolaPioneiros';
 
 /** "· 34 anos" ao lado do rótulo de uma data; nada se não houver data. */
 function AnosAoLado({ iso }: { iso: string }) {
@@ -223,10 +223,49 @@ export function FormPublicador({
                 </span>
               </label>
             ) : null}
+            <label className="flex items-start gap-2 text-sm sm:col-span-2">
+              <Toggle
+                className="mt-0.5"
+                checked={p.escolaOutraData}
+                onChange={(e) => setP((x) => ({ ...x, escolaOutraData: e.target.checked }))}
+              />
+              <span>
+                <span className="font-medium">Quer fazer em outra data</span>
+                <span className="block text-xs text-slate-500">Informe o ano que o publicador prefere e o motivo. Esse ano passa a valer no lugar do calculado.</span>
+              </span>
+            </label>
+            {p.escolaOutraData && (
+              <div className="flex gap-3 sm:col-span-2">
+                <div className="w-28 shrink-0">
+                  <span className="label">Ano</span>
+                  <input
+                    className="input"
+                    type="number"
+                    inputMode="numeric"
+                    min={1990}
+                    max={2100}
+                    placeholder="aaaa"
+                    aria-label="Outro ano para a Escola de Pioneiros"
+                    value={p.escolaOutroAno ?? ''}
+                    onChange={(e) => set('escolaOutroAno', e.target.value === '' ? null : Number(e.target.value))}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="label">Motivo</span>
+                  <input
+                    className="input"
+                    placeholder="Ex.: saúde, trabalho, viagem…"
+                    aria-label="Motivo de querer fazer em outra data"
+                    value={p.escolaOutroMotivo}
+                    onChange={(e) => set('escolaOutroMotivo', e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
             {proxima && (
               <p className="text-sm text-slate-600 dark:text-slate-300 sm:col-span-2">
                 Próxima Escola de Pioneiros: <b>{proxima.ano}</b>
-                <span className="text-slate-500"> · {DICA_ESCOLA[proxima.motivo]}</span>
+                <span className="text-slate-500"> · {dicaEscola(proxima)}</span>
               </p>
             )}
           </>

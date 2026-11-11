@@ -39,6 +39,10 @@ export interface Publicador {
   escolaPioneiros: number | null;
   /** Convidado, mas não conseguiu cursar ou perdeu mais da metade das aulas: volta a ser convidado no ano seguinte. */
   escolaNaoConcluida: boolean;
+  /** Quer fazer a escola em outro ano que não o calculado: vale `escolaOutroAno`, com o motivo ao lado. */
+  escolaOutraData: boolean;
+  escolaOutroAno: number | null;
+  escolaOutroMotivo: string;
   sexo: Sexo;
   esperanca: Esperanca;
   privilegios: Privilegio[];
@@ -125,6 +129,9 @@ export function novoPublicador(parcial: Partial<Publicador> = {}): Publicador {
     inicioPioneiro: '',
     escolaPioneiros: null,
     escolaNaoConcluida: false,
+    escolaOutraData: false,
+    escolaOutroAno: null,
+    escolaOutroMotivo: '',
     sexo: 'M',
     esperanca: 'outras_ovelhas',
     privilegios: [],

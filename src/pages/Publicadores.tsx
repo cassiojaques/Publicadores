@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, ClipboardCopy, FileStack, FilterX, IdCard, MapPin, Phone, Plus, Search, SlidersHorizontal, Users, X } from 'lucide-react';
 import { definirAuxiliar, mesesComDados, moverPublicador, useStore } from '../store/store';
 import { creditosAprovados, situacao, type Situacao } from '../domain/serviceYear';
-import { DICA_ESCOLA, menorDeIdadeNaEscola, proximaEscola } from '../domain/escolaPioneiros';
+import { dicaEscola, menorDeIdadeNaEscola, proximaEscola } from '../domain/escolaPioneiros';
 import { auxiliarNoMes, PRIVILEGIOS, type Privilegio, type Publicador } from '../domain/types';
 import { Avatar, BadgeSituacao, BadgesPrivilegio, Folha, Toggle, Vazio } from '../components/ui';
 import { FormPublicador } from '../components/FormPublicador';
@@ -174,13 +174,14 @@ function EscolaPioneiros({ p }: { p: Publicador }) {
   const passou = e.ano < anoHoje;
   const menor = menorDeIdadeNaEscola(p.nascimento, e.ano);
   const dica = [
-    DICA_ESCOLA[e.motivo][0].toUpperCase() + DICA_ESCOLA[e.motivo].slice(1),
+    dicaEscola(e)[0].toUpperCase() + dicaEscola(e).slice(1) + '.',
     passou && 'O ano já passou: se ele já cursou, registre o ano da escola no cadastro.',
     menor && 'Menor de 18 anos: só faz a escola se um dos pais ou o responsável legal se qualificar para a mesma turma.',
   ].filter(Boolean).join(' ');
   return (
     <span title={dica} className={passou ? 'text-amber-600 dark:text-amber-400' : e.ano === anoHoje ? 'font-semibold text-indigo-600 dark:text-indigo-300' : ''}>
       {e.ano}
+      {e.motivo === 'outra' && <span className="ml-1.5 text-xs text-slate-400">outra data</span>}
       {menor && <span className="ml-1.5 text-xs text-slate-400">&lt;18</span>}
     </span>
   );
